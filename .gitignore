@@ -21,3 +21,8 @@ env/
 .idea/
 .vscode/
 *.swp
+
+# Desktop Build
+build/
+dist/
+dist_installer/

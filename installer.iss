@@ -1,6 +1,6 @@
 ; Inno Setup Script für Buckezz Desktop
 #define MyAppName "Buckezz Desktop"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "2.0.0"
 #define MyAppPublisher "Buckezz"
 #define MyAppExeName "BuckezzDesktop.exe"
 

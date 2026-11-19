@@ -14,10 +14,14 @@ if os.path.exists('.env'):
     datas.append(('.env', '.'))
 if os.path.exists('clean_template.sqlite3'):
     datas.append(('clean_template.sqlite3', '.'))
+if os.path.exists('staticfiles'):
+    datas.append(('staticfiles', 'staticfiles'))
 
 datas += collect_data_files('core')
-datas += collect_data_files('admin_interface')
-datas += collect_data_files('colorfield')
+datas += collect_data_files('design_studio')
+datas += collect_data_files('grid_kit')
+datas += collect_data_files('seed_kit')
+datas += collect_data_files('ops_kit')
 datas += collect_data_files('pwa')
 datas += collect_data_files('django_htmx')
 
@@ -52,8 +56,10 @@ hiddenimports = [
     'buckezz_project.wsgi',
     'buckezz_project.settings',
     'buckezz_project.urls',
-    'admin_interface',
-    'colorfield',
+    'design_studio',
+    'grid_kit',
+    'seed_kit',
+    'ops_kit',
     'whitenoise',
     'whitenoise.middleware',
     'whitenoise.storage',
@@ -64,8 +70,10 @@ hiddenimports = [
 hiddenimports += collect_submodules('reportlab')
 hiddenimports += collect_submodules('xhtml2pdf')
 hiddenimports += collect_submodules('core')
-hiddenimports += collect_submodules('admin_interface')
-hiddenimports += collect_submodules('colorfield')
+hiddenimports += collect_submodules('design_studio')
+hiddenimports += collect_submodules('grid_kit')
+hiddenimports += collect_submodules('seed_kit')
+hiddenimports += collect_submodules('ops_kit')
 
 a = Analysis(
     ['desktop_main.py'],
