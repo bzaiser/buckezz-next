@@ -1,11 +1,13 @@
 services:
   web:
     build: .
+    image: ${IMAGE_NAME:-buckezz_image}
+    container_name: ${CONTAINER_NAME:-buckezz_web}
     volumes:
       - .:/app
-      - ./data:/app/data
+      - ${DB_DIR:-./data}:/app/data
     ports:
-      - "8006:8000"
+      - "${WEB_PORT:-8006}:8000"
     env_file:
       - .env
     command: sh -c "${START_COMMAND:-python manage.py runserver 0.0.0.0:8000}"
