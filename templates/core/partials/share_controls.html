@@ -1,0 +1,223 @@
+{% url 'core:list_detail' bucket.id as list_url %}
+<div id="share-controls" class="card shadow-sm rounded-4 mt-3 border-primary">
+    <div class="card-body p-3 d-flex flex-column gap-3">
+        <h3 class="h6 fw-bold mb-0"><i class="bi bi-share me-1"></i>Freigabe-Einstellungen</h3>
+
+        <div class="d-flex flex-wrap gap-3 align-items-center">
+            {% if bucket.category.template.use_is_public %}
+            <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" id="share_public"
+                       {% if bucket.is_public %}checked{% endif %}
+                       hx-post="{% url 'core:share_toggle' bucket.id %}"
+                       hx-vals='{"action": "toggle_public"}'
+                       hx-target="#share-controls"
+                       hx-swap="outerHTML">
+                <label class="form-check-label" for="share_public">Öffentliche Link-Freigabe</label>
+            </div>
+            {% endif %}
+
+            {% if bucket.is_public and bucket.category.template.use_allow_public_edit %}
+            <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" id="share_public_edit"
+                       {% if bucket.allow_public_edit %}checked{% endif %}
+                       hx-post="{% url 'core:share_toggle' bucket.id %}"
+                       hx-vals='{"action": "toggle_edit"}'
+                       hx-target="#share-controls"
+                       hx-swap="outerHTML">
+                <label class="form-check-label small" for="share_public_edit">Bearbeiten erlauben (Gäste)</label>
+            </div>
+            {% endif %}
+
+            {% if bucket.category.template.use_secret_santa %}
+            <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" id="share_secret_santa"
+                       {% if bucket.is_secret_santa %}checked{% endif %}
+                       hx-post="{% url 'core:share_toggle' bucket.id %}"
+                       hx-vals='{"action": "toggle_secret_santa"}'
+                       hx-target="#share-controls"
+                       hx-swap="outerHTML">
+                <label class="form-check-label fw-bold text-primary" for="share_secret_santa">
+                    <i class="bi bi-gift me-1"></i>Wichtel-Modus (Secret Santa)
+                </label>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if bucket.is_public and not bucket.is_secret_santa %}
+            <div class="input-group input-group-sm" x-data="{ copied: false }">
+                <input type="text" readonly class="form-control font-monospace" value="{{ request.scheme }}://{{ request.get_host }}{% url 'core:list_detail' bucket.id %}">
+                <button type="button" class="btn btn-outline-primary"
+                        @click="navigator.clipboard.writeText('{{ request.scheme }}://{{ request.get_host }}{% url 'core:list_detail' bucket.id %}'); copied = true; setTimeout(() => copied = false, 2000)">
+                    <span x-show="!copied"><i class="bi bi-clipboard me-1"></i>Kopieren</span>
+                    <span x-show="copied" class="text-success"><i class="bi bi-check-lg me-1"></i>Kopiert</span>
+                </button>
+            </div>
+        {% endif %}
+
+        {% if not bucket.is_public and not bucket.is_secret_santa %}
+            <div class="alert alert-secondary small text-center mb-0 py-2">
+                <i class="bi bi-lock me-1"></i>Diese Liste ist aktuell <strong>privat</strong>. Aktiviere oben die „Öffentliche Link-Freigabe“, um einen Link zum Teilen zu generieren.
+            </div>
+        {% endif %}
+
+        {% if bucket.category.template.logic_type == 'todo' or bucket.category.template.logic_rules_json.enable_ical_sync %}
+        <div class="border-top pt-3 d-flex flex-column gap-2">
+            <h4 class="h6 fw-bold text-primary mb-0"><i class="bi bi-arrow-repeat me-1"></i>Realtime-Sync (z.B. Alexa & Microsoft To-Do)</h4>
+            <p class="small text-muted mb-0">
+                Füge hier den iCal-Link (.ics) deiner Einkaufsliste aus Microsoft To-Do / Outlook ein.
+            </p>
+            <div class="input-group input-group-sm">
+                <input type="url"
+                       id="todo-sync-url-input"
+                       name="todo_sync_url"
+                       class="form-control"
+                       placeholder="https://outlook.live.com/owa/calendar/..."
+                       value="{% if bucket.todo_sync_url %}{{ bucket.todo_sync_url }}{% endif %}">
+                <button type="button"
+                        class="btn btn-primary"
+                        hx-post="{% url 'core:share_toggle' bucket.id %}"
+                        hx-include="#todo-sync-url-input"
+                        hx-vals='{"action": "set_todo_sync_url"}'
+                        hx-target="#share-controls"
+                        hx-swap="outerHTML">
+                    Speichern
+                </button>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if bucket.category.template.use_secret_santa or bucket.category.template.use_persons or bucket.category.template.use_beneficiary %}
+        <div class="border-top pt-3 d-flex flex-column gap-3">
+            {% if bucket.category.template.use_beneficiary %}
+            <div>
+                <h4 class="h6 fw-bold text-primary mb-1"><i class="bi bi-gift me-1"></i>Begünstigter</h4>
+                <label class="form-label small text-muted">Für wen ist diese Liste?</label>
+                <select name="beneficiary_id" class="form-select form-select-sm"
+                        hx-post="{% url 'core:share_toggle' bucket.id %}"
+                        hx-vals='{"action": "set_beneficiary"}'
+                        hx-target="#share-controls"
+                        hx-swap="outerHTML">
+                    <option value="">-- Person auswählen --</option>
+                    {% for person in people %}
+                        <option value="{{ person.id }}" {% if bucket.beneficiary_id == person.id %}selected{% endif %}>
+                            {{ person.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            <div class="card border rounded-3">
+                <div class="card-body p-3">
+                    <label class="form-label small fw-bold mb-2">
+                        {% if bucket.is_secret_santa %}<i class="bi bi-gift me-1"></i>Wichtel-Teilnehmer (Schenkende){% else %}<i class="bi bi-people me-1"></i>Listen-Teilnehmer (Eingeladene Personen){% endif %}
+                    </label>
+
+                    <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+                        <div class="flex-grow-1">
+                            <select id="select-participant" placeholder="Person auswählen oder neu..." autocomplete="off">
+                                <option value="">-- Person auswählen oder neu eintippen --</option>
+                                {% for p in people %}
+                                    <option value="{{ p.id }}">{{ p.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="button" class="btn btn-primary btn-sm"
+                                onclick="
+                                    const selectEl = document.getElementById('select-participant');
+                                    const val = selectEl.value;
+                                    if (val) {
+                                        htmx.ajax('POST', '{% url 'core:share_toggle' bucket.id %}', {
+                                            target: '#share-controls',
+                                            values: { action: 'add_participant', person_id: val }
+                                        });
+                                    }
+                                ">
+                            <i class="bi bi-plus-circle me-1"></i>Hinzufügen
+                        </button>
+                    </div>
+                    <script>
+                        (function() {
+                            new TomSelect('#select-participant', {
+                                create: async function(input, callback) {
+                                    try {
+                                        const formData = new FormData();
+                                        formData.append('name', input);
+                                        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                                        const response = await fetch('/api/person/add/', {
+                                            method: 'POST',
+                                            body: formData,
+                                            headers: { 'X-CSRFToken': csrfToken }
+                                        });
+                                        if (response.ok) {
+                                            const data = await response.json();
+                                            callback({value: data.id, text: data.name});
+                                        } else {
+                                            callback(false);
+                                        }
+                                    } catch (e) {
+                                        console.error(e);
+                                        callback(false);
+                                    }
+                                },
+                                persist: false,
+                                placeholder: 'Person auswählen oder neu...'
+                            });
+                        })();
+                    </script>
+
+                    <div class="d-flex flex-column gap-2">
+                        {% if not bucket.participants.exists %}
+                            <div class="text-center text-muted small py-2">
+                                Noch keine Teilnehmer hinzugefügt.
+                            </div>
+                        {% endif %}
+
+                        {% for participant in bucket.participants.all %}
+                            <div class="d-flex align-items-center justify-content-between border rounded-3 px-3 py-2 gap-2 flex-wrap">
+                                <div class="d-flex align-items-center gap-2 flex-grow-1">
+                                    <div class="form-check mb-0" title="Link gesendet?">
+                                        <input class="form-check-input" type="checkbox" id="part_{{ participant.id }}"
+                                               {% if participant.link_sent %}checked{% endif %}
+                                               hx-post="{% url 'core:share_toggle' bucket.id %}"
+                                               hx-vals='{"action": "toggle_participant_sent", "participant_id": "{{ participant.id }}"}'
+                                               hx-target="#share-controls"
+                                               hx-swap="outerHTML">
+                                        <label class="form-check-label small fw-medium {% if participant.link_sent %}text-decoration-line-through text-muted{% endif %}" for="part_{{ participant.id }}">
+                                            {{ participant.person.name }}
+                                        </label>
+                                    </div>
+                                    {% if bucket.is_secret_santa and participant.person == bucket.beneficiary %}
+                                        <span class="badge bg-warning text-dark">Beschenkt</span>
+                                    {% endif %}
+                                </div>
+
+                                <div class="d-flex align-items-center gap-1" x-data="{ copied: false }">
+                                    <button type="button" class="btn btn-outline-primary btn-sm"
+                                            @click="navigator.clipboard.writeText('{{ request.scheme }}://{{ request.get_host }}{{ list_url }}?p={{ participant.person.access_token }}'); copied = true; setTimeout(() => copied = false, 2000)">
+                                        <span x-show="!copied"><i class="bi bi-clipboard me-1"></i>Link</span>
+                                        <span x-show="copied" class="text-success"><i class="bi bi-check-lg"></i></span>
+                                    </button>
+
+                                    <a href="mailto:?subject=Einladung%20zur%20Liste%20{{ bucket.title|urlencode }}&body=Hallo%20{{ participant.person.name|urlencode }},%0A%0Ahier%20ist%20dein%20pers%C3%B6nlicher%20Link%20zur%20Liste%20'{{ bucket.title|urlencode }}':%0A{{ request.scheme }}%3A%2F%2F{{ request.get_host }}{{ list_url }}%3Fp%3D{{ participant.person.access_token }}%0A%0ALiebe%20Gr%C3%BC%C3%9Fe!"
+                                       class="btn btn-outline-secondary btn-sm">
+                                        <i class="bi bi-envelope me-1"></i>Mail
+                                    </a>
+
+                                    <button type="button" class="btn btn-outline-danger btn-sm"
+                                            hx-post="{% url 'core:share_toggle' bucket.id %}"
+                                            hx-vals='{"action": "remove_participant", "participant_id": "{{ participant.id }}"}'
+                                            hx-target="#share-controls"
+                                            hx-swap="outerHTML">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>

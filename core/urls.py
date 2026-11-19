@@ -1,0 +1,58 @@
+from django.urls import path
+from django.contrib.auth import views as auth_views
+from . import views, pdf_views, api_views
+
+app_name = 'core'
+
+urlpatterns = [
+    # Auth
+    path('login/', auth_views.LoginView.as_view(template_name='core/login.html', redirect_authenticated_user=True), name='login'),
+    path('logout/', auth_views.LogoutView.as_view(next_page='core:home'), name='logout'),
+    path('register/', views.RegisterTenantView.as_view(), name='register'),
+    
+    path('api/add/', api_views.AlexaAddItemView.as_view(), name='alexa_add'),
+    path('api/alexa-skill/', api_views.AlexaSkillView.as_view(), name='alexa_skill'),
+    path('api/alexa-skill', api_views.AlexaSkillView.as_view(), name='alexa_skill_no_slash'),
+    path('api/alexa-log/', api_views.AlexaLogView.as_view(), name='alexa_log'),
+    path('api/person/add/', api_views.QuickAddPersonView.as_view(), name='quick_add_person'),
+    path('', views.HomeView.as_view(), name='home'),
+    path('dashboard/', views.DashboardView.as_view(), name='dashboard'),
+    path('list/create/', views.CreateBucketView.as_view(), name='list_create'),
+    path('list/<uuid:pk>/', views.BucketListDetailView.as_view(), name='list_detail'),
+    path('list/<uuid:pk>/layout/', views.ToggleListLayoutView.as_view(), name='toggle_list_layout'),
+    path('list/<uuid:pk>/calendar/', api_views.ICalExportView.as_view(), name='export_calendar'),
+    path('list/<uuid:pk>/pdf/export.pdf', pdf_views.ExportListPDFView.as_view(), name='export_pdf'),
+    
+    # Item CRUD
+    path('list/<uuid:bucket_id>/add-form/', views.GetItemFormView.as_view(), name='get_add_form'),
+    path('list/<uuid:bucket_id>/item/<int:item_id>/edit-form/', views.GetItemFormView.as_view(), name='get_edit_form'),
+    
+    path('list/<uuid:bucket_id>/add/', views.AddItemView.as_view(), name='add_item'),
+    path('item/<int:item_id>/edit/', views.EditItemView.as_view(), name='edit_item'),
+    path('item/<int:pk>/toggle/', views.ToggleItemView.as_view(), name='toggle_item'),
+    path('item/<int:item_id>/subitem/<int:index>/toggle/', views.ToggleSubCheckitemView.as_view(), name='toggle_subitem'),
+    path('item/<int:pk>/delete/', views.DeleteItemView.as_view(), name='delete_item'),
+    path('list/<uuid:bucket_id>/reorder/', views.ReorderItemsView.as_view(), name='reorder_items'),
+    path('role/<int:role_id>/cycle/', views.CyclePersonRoleView.as_view(), name='cycle_person_role'),
+    path('item/<int:item_id>/reserve/', views.ToggleReservationView.as_view(), name='toggle_reservation'),
+    path('item/<int:item_id>/toggle-tracker/', views.ToggleTrackerLogView.as_view(), name='toggle_tracker_log'),
+    path('item/<int:item_id>/adjust-amount/', views.AdjustAmountView.as_view(), name='adjust_amount'),
+    path('item/<int:item_id>/adjust-rating/', views.AdjustRatingView.as_view(), name='adjust_rating'),
+    path('list/<uuid:pk>/share-toggle/', views.ShareToggleView.as_view(), name='share_toggle'),
+    path('settings/', views.ThemeSettingsView.as_view(), name='settings'),
+    path('vorlagen/', views.TemplateStudioListView.as_view(), name='template_studio'),
+    path('vorlagen/neu/', views.TemplateStudioBuilderView.as_view(), name='template_studio_create'),
+    path('vorlagen/import/', views.TemplateStudioImportView.as_view(), name='template_studio_import'),
+    path('vorlagen/<int:pk>/', views.TemplateStudioBuilderView.as_view(), name='template_studio_edit'),
+    path('vorlagen/<int:pk>/export/', views.TemplateStudioExportView.as_view(), name='template_studio_export'),
+    path('vorlagen/<int:pk>/loeschen/', views.TemplateStudioDeleteView.as_view(), name='template_studio_delete'),
+    path('calendar/', views.CalendarView.as_view(), name='calendar'),
+    path('calendar/feed/<uuid:token>/calendar.ics', api_views.PersonalICalFeedView.as_view(), name='list_ical_feed'),
+    path('workout/log-session/', views.WorkoutLogSessionView.as_view(), name='workout_log_session'),
+    path('workout/session/<int:session_id>/delete/', views.DeleteWorkoutSessionView.as_view(), name='workout_delete_session'),
+    path('nutrition/<uuid:bucket_id>/goal/', views.SaveNutritionGoalView.as_view(), name='nutrition_save_goal'),
+    path('nutrition/<uuid:bucket_id>/weight/', views.LogWeightView.as_view(), name='nutrition_log_weight'),
+    path('nutrition/weight/<int:log_id>/delete/', views.DeleteWeightLogView.as_view(), name='nutrition_delete_weight'),
+    path('nutrition/<uuid:bucket_id>/meal/', views.LogMealView.as_view(), name='nutrition_log_meal'),
+    path('nutrition/meal/<int:meal_id>/delete/', views.DeleteMealView.as_view(), name='nutrition_delete_meal'),
+]

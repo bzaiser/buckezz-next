@@ -1,0 +1,679 @@
+{% load l10n %}
+<div id="item-form-container" class="modal d-block show bg-dark bg-opacity-75 p-2 p-sm-3" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg mw-100 mx-auto modal-dialog-scrollable">
+        <form class="modal-content rounded-4 shadow"
+              hx-post="{% if item %}{% url 'core:edit_item' item.id %}{% else %}{% url 'core:add_item' bucket.id %}{% endif %}"
+              hx-target="#item-list"
+              hx-swap="innerHTML"
+              hx-encoding="multipart/form-data"
+              hx-on::after-request="if(event.detail.successful) { this.closest('#item-form-container').remove(); {% if bucket.category.template.logic_type == 'workout' or item.bucket_list.category.template.logic_type == 'workout' %} window.location.reload(); {% endif %} }"
+              onkeydown="if(event.key === 'Enter' && event.target.tagName === 'INPUT') { event.preventDefault(); return false; }">
+            {% csrf_token %}
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">
+                    {% if item %}{% if can_edit %}Eintrag bearbeiten{% else %}Eintrag ansehen{% endif %}{% else %}Neuer Eintrag{% endif %}
+                </h5>
+                <button type="button" class="btn-close" onclick="this.closest('#item-form-container').remove()" aria-label="Schließen"></button>
+            </div>
+            {% if not can_edit %}
+            <script>
+                (function() {
+                    const form = document.currentScript.closest('form');
+                    form.querySelectorAll('input, select, textarea').forEach(el => el.disabled = true);
+                })();
+            </script>
+            {% endif %}
+
+                <div class="modal-body d-flex flex-column gap-3">
+                    <div>
+                        <label class="form-label fw-semibold">Titel / Bezeichnung</label>
+                        <input type="text" name="title" value="{{ item.title|default:'' }}" required class="form-control" autofocus>
+                    </div>
+
+                    {% if item or bucket.category.template.allowed_statuses_json %}
+                    <div>
+                        {% if can_edit %}
+                            <label class="form-label fw-semibold">Status</label>
+                            <select name="item_status" class="form-select">
+                                {% if bucket.category.template.allowed_statuses_json %}
+                                    {% for st in bucket.category.template.get_effective_statuses %}
+                                    <option value="{{ st.key }}" {% if item and item.status == st.key or item and st.key == 'completed' and item.is_completed or item and st.key == 'open' and not item.is_completed and item.status == 'active' or not item and forloop.first %}selected{% endif %}>{{ st.label }}</option>
+                                    {% endfor %}
+                                {% elif bucket.category.template.logic_type == 'gift' %}
+                                    <option value="open" {% if gift_status == 'open' %}selected{% endif %}>Offen</option>
+                                    <option value="reserved" {% if gift_status == 'reserved' %}selected{% endif %}>Reserviert</option>
+                                    <option value="fulfilled" {% if gift_status == 'fulfilled' %}selected{% endif %}>Wunsch erfüllt</option>
+                                {% else %}
+                                    <option value="open" {% if not item.is_completed %}selected{% endif %}>Offen</option>
+                                    <option value="completed" {% if item.is_completed %}selected{% endif %}>
+                                        {% if bucket.category.template.logic_type == 'bucket' %}Erreicht{% else %}Erledigt{% endif %}
+                                    </option>
+                                {% endif %}
+                            </select>
+                        {% else %}
+                            {% if bucket.category.template.logic_type == 'gift' %}
+                                {% if not is_beneficiary %}
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="fw-semibold small">Status:</span>
+                                    {% if gift_status == 'reserved' %}
+                                        <span class="badge text-bg-info">Reserviert {% if gift_person %}von {{ gift_person.name }}{% endif %}</span>
+                                    {% elif gift_status == 'fulfilled' %}
+                                        <span class="badge text-bg-success">Wunsch erfüllt {% if gift_person %}von {{ gift_person.name }}{% endif %}</span>
+                                    {% else %}
+                                        <span class="badge text-bg-secondary">Offen</span>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            {% else %}
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="fw-semibold small">Status:</span>
+                                {% if item.is_completed %}
+                                    <span class="badge text-bg-success">{% if bucket.category.template.logic_type == 'bucket' %}Erreicht{% else %}Erledigt{% endif %}</span>
+                                {% else %}
+                                    <span class="badge text-bg-secondary">Offen</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if bucket.category.template.use_amount or bucket.category.template.use_price %}
+                    <div class="row g-3">
+                        {% if bucket.category.template.use_amount %}
+                        <div class="col-12 col-sm-4">
+                            <label class="form-label fw-semibold">Menge / Anzahl</label>
+                            <input type="number" step="any" name="amount_value" value="{% if item.amount_value is not None %}{{ item.amount_value|unlocalize }}{% endif %}" class="form-control">
+                        </div>
+                        <div class="col-12 col-sm-4">
+                            <label class="form-label fw-semibold">Einheit</label>
+                            <select name="unit_id" class="form-select">
+                                <option value="">-- Keine --</option>
+                                {% for unit in units %}
+                                    <option value="{{ unit.id }}" {% if item and item.unit.id == unit.id %}selected{% endif %}>{{ unit.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% endif %}
+
+                        {% if bucket.category.template.use_price %}
+                        <div class="col-12 col-sm-4">
+                            <label class="form-label fw-semibold">Preis (€)</label>
+                            <input type="number" step="0.01" name="price" value="{% if item.price %}{{ item.price|unlocalize }}{% endif %}" class="form-control">
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if item and item.amount and item.amount_value is None %}
+                    <div class="alert alert-info py-2 small mb-0">
+                        Aktueller Freitext: <em>„{{ item.amount }}“</em>
+                    </div>
+                    {% endif %}
+                    {% endif %}
+
+                    <div class="row g-3">
+                        {% if bucket.category.template.use_brand %}
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label fw-semibold">Marke</label>
+                            <input type="text" name="brand" value="{{ item.brand|default:'' }}" class="form-control">
+                        </div>
+                        {% endif %}
+                        {% if bucket.category.template.use_shop %}
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label fw-semibold">Shop / Quelle</label>
+                            <input type="text" name="shop" value="{{ item.shop|default:'' }}" class="form-control">
+                        </div>
+                        {% endif %}
+                        {% if bucket.category.template.use_location %}
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label fw-semibold">Ort</label>
+                            <input type="text" name="location" value="{{ item.location|default:'' }}" class="form-control">
+                        </div>
+                        {% endif %}
+                        {% if bucket.category.template.use_url %}
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label fw-semibold">Link / URL</label>
+                            <input type="url" name="url" value="{{ item.url|default:'' }}" placeholder="https://..." class="form-control">
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    {% if bucket.category.template.use_milestone %}
+                    <div class="row g-3">
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label fw-semibold">Ziel-Meilenstein</label>
+                            <select name="target_milestone" class="form-select">
+                                <option value="" {% if not item.target_milestone %}selected{% endif %}>-- Kein Meilenstein --</option>
+                                <option value="before_30" {% if item.target_milestone == 'before_30' %}selected{% endif %}>Vor 30</option>
+                                <option value="before_40" {% if item.target_milestone == 'before_40' %}selected{% endif %}>Vor 40</option>
+                                <option value="before_50" {% if item.target_milestone == 'before_50' %}selected{% endif %}>Vor 50</option>
+                                <option value="before_60" {% if item.target_milestone == 'before_60' %}selected{% endif %}>Vor 60</option>
+                                <option value="before_die" {% if item.target_milestone == 'before_die' %}selected{% endif %}>Bevor ich sterbe</option>
+                            </select>
+                        </div>
+                        {% if item and item.is_completed %}
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label fw-semibold">Erreicht am</label>
+                            <input type="datetime-local" name="completed_at" value="{{ item.completed_at|date:'Y-m-d\TH:i' }}" class="form-control">
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if bucket.category.template.use_rating %}
+                    <div x-data="{ rating: {{ item.rating|default:0 }}, hoverRating: 0 }">
+                        <label class="form-label fw-semibold d-block">Bewertung</label>
+                        <input type="hidden" name="rating" :value="rating">
+                        <div class="d-flex gap-1 fs-4">
+                            <template x-for="star in [1, 2, 3, 4, 5]" :key="star">
+                                <button type="button"
+                                        class="btn btn-sm p-0 border-0 text-warning"
+                                        {% if can_edit %}
+                                        @click="rating = (rating === star) ? 0 : star"
+                                        @mouseenter="hoverRating = star"
+                                        @mouseleave="hoverRating = 0"
+                                        {% endif %}>
+                                    <i class="bi fs-4" :class="(hoverRating > 0 ? star <= hoverRating : star <= rating) ? 'bi-star-fill text-warning' : 'bi-star text-muted'"></i>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if bucket.category.template.use_tracker %}
+                    <details class="border rounded-3 p-3"{% if item and item.tracker_unit or item and item.tracker_times or item and item.tracker_stock_total is not None %} open{% endif %}>
+                        <summary class="fw-bold text-primary">
+                            <i class="bi bi-arrow-repeat me-1"></i>Wiederkehrender Tages- &amp; Bestands-Tracker (optional)
+                        </summary>
+                        <div class="row g-3 mt-2">
+                            <div class="col-12 col-sm-6">
+                                <label class="form-label small fw-semibold">Erledigungs-Einheit</label>
+                                <input type="text" name="tracker_unit" value="{{ item.tracker_unit|default:'' }}" placeholder="z.B. Portion, Tablette, ml" class="form-control">
+                            </div>
+                            <div class="col-12 col-sm-6">
+                                <label class="form-label small fw-semibold">Erinnerungs-Uhrzeiten</label>
+                                <input type="text" name="tracker_times" value="{{ item.tracker_times|default:'' }}" placeholder="z.B. 08:00, 18:00" class="form-control">
+                            </div>
+                            <div class="col-12 col-sm-4">
+                                <label class="form-label small fw-semibold">Aktueller Vorrat</label>
+                                <input type="number" name="tracker_stock_total" value="{{ item.tracker_stock_total|default:'' }}" placeholder="z.B. 100" class="form-control">
+                            </div>
+                            <div class="col-12 col-sm-4">
+                                <label class="form-label small fw-semibold">Warnschwelle</label>
+                                <input type="number" name="tracker_stock_min" value="{{ item.tracker_stock_min|default:'' }}" placeholder="z.B. 10" class="form-control">
+                            </div>
+                            <div class="col-12 col-sm-4">
+                                <label class="form-label small fw-semibold">Verbrauch / Klick</label>
+                                <input type="number" step="any" name="tracker_dosage_per_take" value="{% if item.tracker_dosage_per_take is not None %}{{ item.tracker_dosage_per_take|unlocalize }}{% else %}1{% endif %}" class="form-control">
+                            </div>
+                        </div>
+                    </details>
+                    {% endif %}
+
+                    {% if bucket.category.template.use_start_date or bucket.category.template.use_end_date or bucket.category.template.use_reminder %}
+                    <div class="row g-3">
+                        {% if bucket.category.template.use_start_date %}
+                        <div class="col-12 col-sm-4">
+                            <label class="form-label fw-semibold">Start</label>
+                            <input type="datetime-local" name="start_date" value="{{ item.start_date|date:'Y-m-d\TH:i'|default:'' }}" class="form-control">
+                        </div>
+                        {% endif %}
+                        {% if bucket.category.template.use_end_date %}
+                        <div class="col-12 col-sm-4">
+                            <label class="form-label fw-semibold">Ende</label>
+                            <input type="datetime-local" name="end_date" value="{{ item.end_date|date:'Y-m-d\TH:i'|default:'' }}" class="form-control">
+                        </div>
+                        {% endif %}
+                        {% if bucket.category.template.use_reminder %}
+                        <div class="col-12 col-sm-4">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label fw-semibold mb-0">Erinnerung am</label>
+                                {% if bucket.category.template.use_end_date %}
+                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none"
+                                        onclick="(function(btn){ const f = btn.closest('form'); const endEl = f.querySelector('[name=end_date]'); const remEl = f.querySelector('[name=reminder_at]'); if(!endEl || !endEl.value) return; const d = new Date(endEl.value); if(isNaN(d)) return; d.setDate(d.getDate() - 1); const pad = n => String(n).padStart(2,'0'); remEl.value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; })(this)">
+                                    <i class="bi bi-alarm me-1"></i>1 Tag vor Ende
+                                </button>
+                                {% endif %}
+                            </div>
+                            <input type="datetime-local" name="reminder_at" value="{{ item.reminder_at|date:'Y-m-d\TH:i'|default:'' }}" class="form-control">
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if bucket.category.template.logic_type == 'event' or bucket.category.template.logic_rules_json.enable_event_invitations %}
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="is_invitation" id="id_is_invitation" value="true" {% if item.is_invitation %}checked{% endif %}>
+                        <label class="form-check-label fw-semibold" for="id_is_invitation">Als das Event markieren</label>
+                    </div>
+                    {% endif %}
+
+                    {% if bucket.category.template.use_persons %}
+                    <div class="d-flex flex-column gap-2">
+                        <div>
+                            <label class="form-label fw-semibold">Beteiligte Personen / Kontakte</label>
+                            <select id="select-persons" name="persons" multiple placeholder="Personen auswählen oder neu..." autocomplete="off">
+                            {% for p in people %}
+                                <option value="{{ p.id }}"
+                                    {% if item %}
+                                        {% for role in item.person_roles.all %}
+                                            {% if role.person.id == p.id %}
+                                                {% if bucket.category.template.logic_type == 'event' or bucket.category.template.logic_rules_json.enable_event_invitations %}
+                                                    {% if role.role == 'assigned' %}selected{% endif %}
+                                                {% else %}
+                                                    selected
+                                                {% endif %}
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}>
+                                    {{ p.name }}{% if p.phone %} ({{ p.phone }}){% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <script>
+                            (function() {
+                                new TomSelect('#select-persons', {
+                                    plugins: ['remove_button'],
+                                    create: async function(input, callback) {
+                                        try {
+                                            const formData = new FormData();
+                                            formData.append('name', input);
+                                            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                                            const response = await fetch('/api/person/add/', {
+                                                method: 'POST',
+                                                body: formData,
+                                                headers: { 'X-CSRFToken': csrfToken }
+                                            });
+                                            if (response.ok) {
+                                                const data = await response.json();
+                                                callback({value: data.id, text: data.name});
+                                            } else {
+                                                callback(false);
+                                            }
+                                        } catch (e) {
+                                            console.error(e);
+                                            callback(false);
+                                        }
+                                    },
+                                    persist: false,
+                                    placeholder: 'Personen auswählen oder neu...'
+                                });
+                            })();
+                        </script>
+                        </div>
+                        {% if bucket.category.template.allowed_roles_json %}
+                        <div>
+                            <label class="form-label small fw-semibold mb-1">Rolle für neu zugewiesene Personen</label>
+                            <select name="person_default_role" class="form-select form-select-sm">
+                                {% for r in bucket.category.template.get_effective_roles %}
+                                <option value="{{ r.key }}">{{ r.label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if bucket.category.template.use_image %}
+                    <div>
+                        <label class="form-label fw-semibold">Fotos / Belege (Mehrfachauswahl möglich)</label>
+                        {% if item.image or item.images.exists %}
+                        <div class="d-flex flex-wrap gap-2 mb-2">
+                            {% if item.image %}
+                            <div class="border rounded-3 p-1 text-center">
+                                <a href="{{ item.image.url }}" target="_blank" class="d-block mb-1">
+                                    <img src="{{ item.image.url }}" alt="Vorschau" class="img-thumbnail rounded-2" width="72">
+                                </a>
+                                <label class="form-check form-check-inline small mb-0">
+                                    <input class="form-check-input" type="checkbox" name="delete_main_image" value="1">
+                                    <span class="form-check-label text-danger">Löschen</span>
+                                </label>
+                            </div>
+                            {% endif %}
+                            {% for img in item.images.all %}
+                            <div class="border rounded-3 p-1 text-center">
+                                <a href="{{ img.image.url }}" target="_blank" class="d-block mb-1">
+                                    <img src="{{ img.image.url }}" alt="Foto {{ forloop.counter }}" class="img-thumbnail rounded-2" width="72">
+                                </a>
+                                <label class="form-check form-check-inline small mb-0">
+                                    <input class="form-check-input" type="checkbox" name="delete_image_ids" value="{{ img.id }}">
+                                    <span class="form-check-label text-danger">Löschen</span>
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        <input type="file" name="images" multiple accept="image/*" class="form-control">
+                        <div class="form-text">Du kannst ein oder mehrere Fotos gleichzeitig auswählen.</div>
+                    </div>
+                    {% endif %}
+
+                    {% if bucket.category.template.use_subchecklist_photos %}
+                    <div class="border rounded-3 p-3"
+                         x-data="{
+                             subItems: [
+                                 {% if item.subchecklist_json %}
+                                     {% for sub in item.subchecklist_json %}
+                                     { title: '{{ sub.title|escapejs }}', image: '{{ sub.image|default:''|escapejs }}' }{% if not forloop.last %},{% endif %}
+                                     {% endfor %}
+                                 {% else %}
+                                     { title: '', image: '' }
+                                 {% endif %}
+                             ]
+                         }">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label fw-semibold mb-0">
+                                <i class="bi bi-images me-1"></i>Teil-Checkliste (mit Foto pro Eintrag)
+                            </label>
+                            <button type="button" @click="subItems.push({ title: '', image: '' })" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-plus-circle me-1"></i>Punkt hinzufügen
+                            </button>
+                        </div>
+                        <div class="d-flex flex-column gap-2">
+                            <template x-for="(sub, idx) in subItems" :key="idx">
+                                <div class="border rounded-3 p-2 d-flex flex-column gap-2 bg-body-tertiary">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <input type="text" name="sub_title" x-model="sub.title" class="form-control form-control-sm" placeholder="z.B. Strampler gelb">
+                                        <input type="hidden" name="sub_existing_image" :value="sub.image">
+                                        <button type="button" @click="subItems.splice(idx, 1)" class="btn btn-sm btn-outline-danger" title="Punkt entfernen">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    </div>
+                                    <div class="d-flex flex-wrap align-items-center gap-2">
+                                        <template x-if="sub.image">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <img :src="sub.image" alt="Sub-Foto" class="img-thumbnail rounded-2" width="48">
+                                                <button type="button" @click="sub.image = ''" class="btn btn-sm btn-outline-danger py-0 px-1" title="Foto entfernen">
+                                                    <i class="bi bi-x"></i>
+                                                </button>
+                                            </div>
+                                        </template>
+                                        <input type="file" :name="'sub_image_' + idx" accept="image/*" class="form-control form-control-sm w-auto flex-grow-1">
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    {% elif bucket.category.template.use_subchecklist %}
+                    <div>
+                        <label class="form-label fw-semibold">Teil-Gegenstände / Einzelne Sachen (eine pro Zeile)</label>
+                        <textarea name="subchecklist_text" rows="3" class="form-control" placeholder="z.B.&#10;Korb&#10;3x Strampler">{% if item.subchecklist_json %}{% for sub in item.subchecklist_json %}{{ sub.title }}{% if not forloop.last %}
+{% endif %}{% endfor %}{% endif %}</textarea>
+                    </div>
+                    {% endif %}
+
+                    {% if bucket.category.template.logic_type == 'workout' %}
+                    <div class="border rounded-3 p-3 d-flex flex-column gap-3"
+                         x-data="{
+                             workoutType: '{{ item.workout_type|default:'strength' }}',
+                             setsCount: '{{ item.workout_config_json.sets_count|default:'3' }}',
+                             targetReps: '{{ item.workout_config_json.target_reps|default:'10, 8, 6' }}',
+                             targetWeight: '{{ item.workout_config_json.target_weight|default:'50' }}',
+                             restTime: '{{ item.workout_config_json.rest_time|default:'120' }}',
+                             targetDistance: '{{ item.workout_config_json.target_distance|default:'' }}',
+                             targetDuration: '{{ item.workout_config_json.target_duration|default:'' }}',
+                             targetPace: '{{ item.workout_config_json.target_pace|default:'' }}',
+                             intervalFormat: '{{ item.workout_config_json.interval_format|default:'AMRAP' }}',
+                             intervalDuration: '{{ item.workout_config_json.interval_duration|default:'' }}'
+                         }">
+                        <h6 class="fw-bold text-primary mb-0"><i class="bi bi-activity me-1"></i>Aktivitäts-Konfiguration</h6>
+
+                        <div>
+                            <label class="form-label small fw-semibold">Aktivitätstyp</label>
+                            <select name="workout_type" x-model="workoutType" class="form-select">
+                                <option value="strength">Krafttraining (Gewichte & Sätze)</option>
+                                <option value="endurance">Ausdauertraining (Strecke & Zeit)</option>
+                                <option value="interval">Intervall / Crossfit / HIIT</option>
+                            </select>
+                        </div>
+
+                        <div x-show="workoutType === 'strength'" class="row g-3">
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold">Anzahl Sätze</label>
+                                <input type="number" name="workout_sets_count" x-model="setsCount" class="form-control">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold">Pause (Sekunden)</label>
+                                <input type="number" name="workout_rest_time" x-model="restTime" class="form-control">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold">Ziel-Wdh. (z.B. 10,8,6)</label>
+                                <input type="text" name="workout_target_reps" x-model="targetReps" placeholder="z.B. 10, 8, 6" class="form-control">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold">Ziel-Gewicht (kg)</label>
+                                <input type="text" name="workout_target_weight" x-model="targetWeight" placeholder="z.B. 50, 50, 60" class="form-control">
+                            </div>
+                        </div>
+
+                        <div x-show="workoutType === 'endurance'" class="row g-3">
+                            <div class="col-4">
+                                <label class="form-label small fw-semibold">Ziel-Distanz (km)</label>
+                                <input type="text" name="workout_target_distance" x-model="targetDistance" placeholder="z.B. 10" class="form-control">
+                            </div>
+                            <div class="col-4">
+                                <label class="form-label small fw-semibold">Ziel-Dauer (Min.)</label>
+                                <input type="text" name="workout_target_duration" x-model="targetDuration" placeholder="z.B. 60" class="form-control">
+                            </div>
+                            <div class="col-4">
+                                <label class="form-label small fw-semibold">Ziel-Pace (Min/km)</label>
+                                <input type="text" name="workout_target_pace" x-model="targetPace" placeholder="z.B. 5:15" class="form-control">
+                            </div>
+                        </div>
+
+                        <div x-show="workoutType === 'interval'" class="row g-3">
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold">Format (z.B. AMRAP)</label>
+                                <input type="text" name="workout_interval_format" x-model="intervalFormat" placeholder="z.B. AMRAP" class="form-control">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold">Dauer (Minuten)</label>
+                                <input type="text" name="workout_interval_duration" x-model="intervalDuration" placeholder="z.B. 20" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if custom_fields_with_values %}
+                    <div class="border rounded-3 p-3 d-flex flex-column gap-2">
+                        <h6 class="fw-bold text-primary mb-1"><i class="bi bi-ui-checks me-1"></i>Zusatzfelder</h6>
+                        <div class="row g-2">
+                            {% for cf in custom_fields_with_values %}
+                            <div class="{% if cf.type == 'textarea' or cf.type == 'radio' or cf.type == 'multiselect' or cf.type == 'image' %}col-12{% else %}col-12 col-sm-6{% endif %}">
+                                {% if cf.type == 'checkbox' %}
+                                <div class="form-check pt-2">
+                                    <input class="form-check-input" type="checkbox" name="custom_{{ cf.key }}" id="cf_{{ cf.key }}" {% if cf.value %}checked{% endif %}>
+                                    <label class="form-check-label fw-semibold" for="cf_{{ cf.key }}">{{ cf.label }}</label>
+                                </div>
+                                {% elif cf.type == 'textarea' %}
+                                <label class="form-label small fw-semibold">{{ cf.label }}</label>
+                                <textarea name="custom_{{ cf.key }}" rows="2" class="form-control form-control-sm">{{ cf.value }}</textarea>
+                                {% elif cf.type == 'select' %}
+                                <label class="form-label small fw-semibold">{{ cf.label }}</label>
+                                <select name="custom_{{ cf.key }}" class="form-select form-select-sm">
+                                    <option value="">-- Auswählen --</option>
+                                    {% for opt in cf.options_list %}
+                                    <option value="{{ opt }}" {% if cf.value == opt %}selected{% endif %}>{{ opt }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% elif cf.type == 'radio' %}
+                                <label class="form-label small fw-semibold d-block">{{ cf.label }}</label>
+                                <div class="d-flex flex-wrap gap-3">
+                                    {% for opt in cf.options_list %}
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="custom_{{ cf.key }}" id="cf_{{ cf.key }}_{{ forloop.counter }}" value="{{ opt }}" {% if cf.value == opt %}checked{% endif %}>
+                                        <label class="form-check-label small" for="cf_{{ cf.key }}_{{ forloop.counter }}">{{ opt }}</label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% elif cf.type == 'multiselect' %}
+                                <label class="form-label small fw-semibold d-block">{{ cf.label }}</label>
+                                <div class="d-flex flex-wrap gap-3">
+                                    {% for opt in cf.options_list %}
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="custom_{{ cf.key }}" id="cf_{{ cf.key }}_{{ forloop.counter }}" value="{{ opt }}" {% if opt in cf.value_list %}checked{% endif %}>
+                                        <label class="form-check-label small" for="cf_{{ cf.key }}_{{ forloop.counter }}">{{ opt }}</label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% elif cf.type == 'image' %}
+                                <label class="form-label small fw-semibold">{{ cf.label }}</label>
+                                {% if cf.value %}
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <img src="{{ cf.value }}" alt="{{ cf.label }}" class="img-thumbnail rounded-2" width="56">
+                                    <label class="form-check form-check-inline small mb-0">
+                                        <input class="form-check-input" type="checkbox" name="custom_clear_{{ cf.key }}" value="1">
+                                        <span class="form-check-label text-danger">Bild entfernen</span>
+                                    </label>
+                                </div>
+                                {% endif %}
+                                <input type="file" name="custom_file_{{ cf.key }}" accept="image/*" class="form-control form-control-sm">
+                                {% elif cf.type == 'url' %}
+                                <label class="form-label small fw-semibold">{{ cf.label }}</label>
+                                <input type="url" name="custom_{{ cf.key }}" value="{{ cf.value }}" placeholder="https://..." class="form-control form-control-sm">
+                                {% elif cf.type == 'rating' %}
+                                <label class="form-label small fw-semibold">{{ cf.label }}</label>
+                                <select name="custom_{{ cf.key }}" class="form-select form-select-sm">
+                                    <option value="">-- Keine --</option>
+                                    <option value="1" {% if cf.value == '1' %}selected{% endif %}>1 Stern</option>
+                                    <option value="2" {% if cf.value == '2' %}selected{% endif %}>2 Sterne</option>
+                                    <option value="3" {% if cf.value == '3' %}selected{% endif %}>3 Sterne</option>
+                                    <option value="4" {% if cf.value == '4' %}selected{% endif %}>4 Sterne</option>
+                                    <option value="5" {% if cf.value == '5' %}selected{% endif %}>5 Sterne</option>
+                                </select>
+                                {% elif cf.type == 'currency' %}
+                                <label class="form-label small fw-semibold">{{ cf.label }}</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" step="0.01" name="custom_{{ cf.key }}" value="{{ cf.value }}" class="form-control">
+                                    <span class="input-group-text">{{ cf.currency_code }}</span>
+                                </div>
+                                {% elif cf.type == 'color' %}
+                                <label class="form-label small fw-semibold">{{ cf.label }}</label>
+                                <input type="color" name="custom_{{ cf.key }}" value="{{ cf.value|default:'#0d6efd' }}" class="form-control form-control-color">
+                                {% elif cf.type == 'number' %}
+                                <label class="form-label small fw-semibold">{{ cf.label }}</label>
+                                <input type="number" step="any" name="custom_{{ cf.key }}" value="{{ cf.value }}" class="form-control form-control-sm">
+                                {% elif cf.type == 'date' %}
+                                <label class="form-label small fw-semibold">{{ cf.label }}</label>
+                                <input type="date" name="custom_{{ cf.key }}" value="{{ cf.value }}" class="form-control form-control-sm">
+                                {% else %}
+                                <label class="form-label small fw-semibold">{{ cf.label }}</label>
+                                <input type="text" name="custom_{{ cf.key }}" value="{{ cf.value }}" class="form-control form-control-sm">
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div>
+                        <label class="form-label fw-semibold">Notizen</label>
+                        <textarea name="notes" rows="2" class="form-control">{{ item.notes|default:'' }}</textarea>
+                    </div>
+
+                    <div id="form-plausibility-warnings" class="alert alert-warning py-2 px-3 small mb-0 d-none" role="alert">
+                        <div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Plausibilitätshinweise (Speichern trotzdem möglich):</div>
+                        <ul class="mb-0 ps-3"></ul>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    {% if can_edit %}
+                    <button type="button" class="btn btn-outline-secondary" onclick="this.closest('#item-form-container').remove()">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Speichern</button>
+                    {% else %}
+                    <button type="button" class="btn btn-primary" onclick="this.closest('#item-form-container').remove()">Schließen</button>
+                    {% endif %}
+                </div>
+                {% if can_edit %}
+                <script>
+                    (function() {
+                        const modal = document.getElementById('item-form-container');
+                        if (!modal) return;
+                        const form = modal.querySelector('form');
+                        const warnBox = document.getElementById('form-plausibility-warnings');
+                        const warnList = warnBox ? warnBox.querySelector('ul') : null;
+                        if (!form || !warnBox || !warnList) return;
+
+                        const statusMeta = {
+                            {% for st in bucket.category.template.get_effective_statuses %}
+                            '{{ st.key|escapejs }}': { label: '{{ st.label|escapejs }}'.toLowerCase(), completes: {{ st.completes|yesno:'true,false' }} }{% if not forloop.last %},{% endif %}
+                            {% endfor %}
+                        };
+                        const roleMeta = {
+                            {% for r in bucket.category.template.get_effective_roles %}
+                            '{{ r.key|escapejs }}': { label: '{{ r.label|escapejs }}'.toLowerCase(), completes: {{ r.completes|yesno:'true,false' }} }{% if not forloop.last %},{% endif %}
+                            {% endfor %}
+                        };
+                        const hasDateOrReminder = {{ bucket.category.template.use_end_date|yesno:'true,false' }} || {{ bucket.category.template.use_reminder|yesno:'true,false' }};
+
+                        function checkPlausibility() {
+                            const warnings = [];
+                            const statusEl = form.querySelector('[name="item_status"]');
+                            const statusKey = statusEl ? statusEl.value : '';
+                            const st = statusMeta[statusKey] || { label: statusKey.toLowerCase(), completes: false };
+                            const isSold = st.label.includes('verkauft') || statusKey === 'sold';
+                            const isForSale = statusKey === 'for_sale' || /zum verkauf|inseriert|angebot/.test(st.label);
+
+                            const personsEl = form.querySelector('[name="persons"]');
+                            const hasPersons = personsEl ? Array.from(personsEl.selectedOptions).length > 0 : false;
+                            const roleEl = form.querySelector('[name="person_default_role"]');
+                            const roleKey = roleEl ? roleEl.value : '';
+                            const rInfo = roleMeta[roleKey] || { label: roleKey.toLowerCase(), completes: false };
+
+                            if (!st.completes && hasPersons && (rInfo.completes || roleKey === 'fulfilled' || /käufer|verkauf|erfüllt/.test(rInfo.label))) {
+                                warnings.push('Status ist noch offen, aber eine Verkaufs- bzw. Abschlussrolle ist gewählt.');
+                            }
+                            if ((st.label.includes('verliehen') || statusKey === 'lent_out' || statusKey === 'lent_to') && personsEl && !hasPersons) {
+                                warnings.push('Status ist „Verliehen“, aber es ist noch keine Person ausgewählt.');
+                            }
+
+                            const startEl = form.querySelector('[name="start_date"]');
+                            const endEl = form.querySelector('[name="end_date"]');
+                            const remEl = form.querySelector('[name="reminder_at"]');
+                            if ((st.label.includes('ausgeliehen') || statusKey === 'borrowed') && hasDateOrReminder && (!endEl || !endEl.value) && (!remEl || !remEl.value)) {
+                                warnings.push('Status ist „Ausgeliehen“ ohne Rückgabedatum oder Erinnerung.');
+                            }
+                            if (startEl && endEl && startEl.value && endEl.value && endEl.value < startEl.value) {
+                                warnings.push('Das Enddatum liegt vor dem Startdatum.');
+                            }
+                            if (endEl && remEl && endEl.value && remEl.value && remEl.value > endEl.value) {
+                                warnings.push('Die Erinnerung liegt nach dem Enddatum.');
+                            }
+
+                            const saleInputs = Array.from(form.querySelectorAll('[name^="custom_"]')).filter(el => /verkaufspreis|sale_price|erloes|erlös/i.test(el.name));
+                            const hasSaleVal = saleInputs.some(el => el.value !== '');
+                            const priceEl = form.querySelector('[name="price"]');
+                            if (isSold) {
+                                if ((saleInputs.length > 0 && !hasSaleVal) || (saleInputs.length === 0 && priceEl && !priceEl.value)) {
+                                    warnings.push('Status ist „Verkauft“, aber es wurde noch kein Verkaufspreis eingetragen.');
+                                }
+                            } else if (isForSale) {
+                                if (saleInputs.length > 0 && !hasSaleVal) {
+                                    warnings.push('Status ist „Zum Verkauf“, aber es wurde noch kein Preis eingetragen.');
+                                }
+                            } else if (hasSaleVal) {
+                                warnings.push('Ein Verkaufspreis ist eingetragen, aber der Status steht weder auf „Zum Verkauf“ noch auf „Verkauft“.');
+                            }
+
+                            warnList.innerHTML = '';
+                            if (warnings.length > 0) {
+                                warnings.forEach(w => {
+                                    const li = document.createElement('li');
+                                    li.textContent = w;
+                                    warnList.appendChild(li);
+                                });
+                                warnBox.classList.remove('d-none');
+                            } else {
+                                warnBox.classList.add('d-none');
+                            }
+                        }
+
+                        form.addEventListener('input', checkPlausibility);
+                        form.addEventListener('change', checkPlausibility);
+                        checkPlausibility();
+                    })();
+                </script>
+                {% endif %}
+        </form>
+    </div>
+</div>

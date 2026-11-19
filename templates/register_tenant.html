@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+
+{% block title %}Instanz registrieren - Buckezz 2.0{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-9 col-lg-7">
+    <div class="text-center mb-4">
+        <h1 class="h2 fw-bold mb-1">Neue Instanz anlegen</h1>
+        <p class="text-muted">Erstelle eine komplett neue, isolierte Buckezz-Instanz für deine Familie.</p>
+    </div>
+
+    {% if errors.global %}
+        <div class="alert alert-danger" role="alert">
+            <strong><i class="bi bi-exclamation-triangle me-1"></i>Registrierungsfehler:</strong> {{ errors.global }}
+        </div>
+    {% endif %}
+
+    <div class="card shadow-sm rounded-4">
+        <div class="card-body p-4">
+            <form method="post" action="{% url 'core:register' %}" autocomplete="off" class="d-flex flex-column gap-4">
+                {% csrf_token %}
+
+                <div>
+                    <h3 class="h6 fw-bold text-primary border-bottom pb-2 mb-3">
+                        <i class="bi bi-house-add me-1"></i>Instanz-Konfiguration
+                    </h3>
+                    <div class="mb-3">
+                        <label for="instance_name" class="form-label fw-semibold">Name der Instanz / Familie <span class="text-danger">*</span></label>
+                        <input type="text" id="instance_name" name="instance_name" value="{{ instance_name|default:'' }}" placeholder="z. B. Familie Schmidt" class="form-control" required autocomplete="off">
+                        {% if errors.instance_name %}
+                            <div class="text-danger small mt-1">{{ errors.instance_name }}</div>
+                        {% else %}
+                            <div class="form-text">Der Anzeigename deiner neuen Instanz im Header.</div>
+                        {% endif %}
+                    </div>
+
+                    <div>
+                        <label for="instance_slug" class="form-label fw-semibold">Gewünschte Subdomain <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <input type="text" id="instance_slug" name="instance_slug" value="{{ instance_slug|default:'' }}" placeholder="schmidt" class="form-control" required autocomplete="off" oninput="this.value = this.value.toLowerCase().replace(/[^a-z0-9-]/g, '')">
+                            <span class="input-group-text">.buckezz...</span>
+                        </div>
+                        {% if errors.instance_slug %}
+                            <div class="text-danger small mt-1">{{ errors.instance_slug }}</div>
+                        {% else %}
+                            <div class="form-text">Nur Kleinbuchstaben, Zahlen und Bindestriche.</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="h6 fw-bold text-primary border-bottom pb-2 mb-3">
+                        <i class="bi bi-shield-lock me-1"></i>Administrator-Account
+                    </h3>
+                    <div class="mb-3">
+                        <label for="admin_username" class="form-label fw-semibold">Administrator-Nutzername <span class="text-danger">*</span></label>
+                        <input type="text" id="admin_username" name="admin_username" value="{{ admin_username|default:'' }}" placeholder="z. B. admin" class="form-control" required autocomplete="username">
+                        {% if errors.admin_username %}
+                            <div class="text-danger small mt-1">{{ errors.admin_username }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="admin_email" class="form-label fw-semibold">E-Mail-Adresse <span class="text-danger">*</span></label>
+                        <input type="email" id="admin_email" name="admin_email" value="{{ admin_email|default:'' }}" placeholder="admin@familienschmidt.de" class="form-control" required autocomplete="email">
+                        {% if errors.admin_email %}
+                            <div class="text-danger small mt-1">{{ errors.admin_email }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div>
+                        <label for="admin_password" class="form-label fw-semibold">Passwort <span class="text-danger">*</span></label>
+                        <input type="password" id="admin_password" name="admin_password" placeholder="Mindestens 8 Zeichen" class="form-control" required autocomplete="new-password">
+                        {% if errors.admin_password %}
+                            <div class="text-danger small mt-1">{{ errors.admin_password }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if registration_code_required %}
+                <div>
+                    <h3 class="h6 fw-bold text-danger border-bottom pb-2 mb-3">
+                        <i class="bi bi-key me-1"></i>Sicherheitsschlüssel
+                    </h3>
+                    <label for="registration_code" class="form-label fw-semibold">Registrierungsschlüssel <span class="text-danger">*</span></label>
+                    <input type="password" id="registration_code" name="registration_code" placeholder="Geheimen Schlüssel eingeben" class="form-control" required autocomplete="off">
+                    {% if errors.registration_code %}
+                        <div class="text-danger small mt-1">{{ errors.registration_code }}</div>
+                    {% else %}
+                        <div class="form-text">Bitte gib den vom Administrator festgelegten Registrierungsschlüssel ein.</div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="bi bi-rocket-takeoff me-1"></i>Instanz erstellen & initialisieren
+                    </button>
+                    <a href="{% url 'core:home' %}" class="btn btn-link text-decoration-none">Abbrechen und zurück zur Startseite</a>
+                </div>
+            </form>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

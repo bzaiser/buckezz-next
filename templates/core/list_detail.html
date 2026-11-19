@@ -1,0 +1,1742 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+{# Safe JSON data island – avoids breaking Alpine x-data attribute parsing #}
+<script type="application/json" id="workout-sessions-data">{{ workout_sessions_json|default:"[]"|safe }}</script>
+
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('listDetail', () => ({
+        showShare: false,
+
+        showPrintModal: false,
+        showHelpModal: false,
+        showStats: false,
+
+    // Gym / Workout Mode States
+    gymMode: false,
+    workoutStarted: false,
+    workoutDuration: 0,
+    timerInterval: null,
+    currentExerciseIndex: 0,
+    exerciseIndices: [{% for item in active_items %}{{ forloop.counter0 }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+    rating: 5,
+    notes: '',
+    activeRestTimer: null,
+    restTimeRemaining: 0,
+    restDuration: 120,
+    restProgress: 100,
+    audioContext: null,
+    showLogSessionModal: false,
+    
+    // Laps for endurance stopwatch
+    lapTimer: 0,
+    lapInterval: null,
+    currentLapIndex: 1,
+    
+    // Work / Rest Interval Timer States
+    intervalTimerRunning: false,
+    intervalState: 'idle', // 'idle', 'work', 'rest'
+    intervalSecondsRemaining: 0,
+    intervalWorkDuration: 40,
+    intervalRestDuration: 20,
+    intervalRound: 1,
+    intervalTotalRounds: 8,
+    intervalInterval: null,
+
+    // Gym Workout Logs
+    logs: {},
+    visibleHistoryLimit: 10,
+    
+    init() {
+        this.initWorkoutLogs();
+    },
+    
+    startWorkout() {
+        this.workoutStarted = true;
+        this.workoutDuration = 0;
+        this.currentExerciseIndex = 0;
+        this.exerciseIndices = [{% for item in active_items %}{{ forloop.counter0 }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+        this.timerInterval = setInterval(() => {
+            this.workoutDuration++;
+        }, 1000);
+        this.gymMode = true;
+        this.initWorkoutLogs();
+        
+        // Initialize Web Audio
+        try {
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        } catch(e) {}
+    },
+    
+    beep(freq = 880, dur = 300) {
+        if (!this.audioContext) return;
+        try {
+            let osc = this.audioContext.createOscillator();
+            let gain = this.audioContext.createGain();
+            osc.connect(gain);
+            gain.connect(this.audioContext.destination);
+            osc.frequency.setValueAtTime(freq, this.audioContext.currentTime);
+            gain.gain.setValueAtTime(0.4, this.audioContext.currentTime);
+            osc.start();
+            setTimeout(() => { osc.stop(); }, dur);
+        } catch(e){}
+    },
+    
+    startRest(seconds) {
+        if (this.activeRestTimer) clearInterval(this.activeRestTimer);
+        this.restDuration = seconds;
+        this.restTimeRemaining = seconds;
+        this.restProgress = 100;
+        
+        this.activeRestTimer = setInterval(() => {
+            this.restTimeRemaining--;
+            this.restProgress = (this.restTimeRemaining / this.restDuration) * 100;
+            if (this.restTimeRemaining <= 0) {
+                clearInterval(this.activeRestTimer);
+                this.activeRestTimer = null;
+                this.beep(1200, 500);
+                if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+            }
+        }, 1000);
+    },
+    
+    formatTime(sec) {
+        let m = Math.floor(sec / 60);
+        let s = sec % 60;
+        return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    },
+    
+    toggleSet(itemId, setIdx, restTime) {
+    if (!this.logs[itemId] || !this.logs[itemId].sets) return;
+    let set = this.logs[itemId].sets[setIdx];
+    if (!set) return;
+    set.done = !set.done;
+    if (set.done) {
+        // Beep and automatically start rest timer
+        this.beep(880, 150);
+        this.startRest(restTime || 120);
+    }
+},
+    
+    // Interval Timer controls
+    startIntervalTraining() {
+        if (this.intervalTimerRunning) return;
+        this.intervalTimerRunning = true;
+        this.intervalState = 'work';
+        this.intervalSecondsRemaining = this.intervalWorkDuration;
+        this.intervalRound = 1;
+        this.beep(600, 400);
+        
+        this.intervalInterval = setInterval(() => {
+            this.intervalSecondsRemaining--;
+            if (this.intervalSecondsRemaining <= 0) {
+                if (this.intervalState === 'work') {
+                    if (this.intervalRound >= this.intervalTotalRounds) {
+                        // Finished all rounds
+                        clearInterval(this.intervalInterval);
+                        this.intervalTimerRunning = false;
+                        this.intervalState = 'idle';
+                        this.beep(1200, 1000);
+                    } else {
+                        // Switch to rest
+                        this.intervalState = 'rest';
+                        this.intervalSecondsRemaining = this.intervalRestDuration;
+                        this.beep(400, 500);
+                    }
+                } else {
+                    // Switch to work
+                    this.intervalRound++;
+                    this.intervalState = 'work';
+                    this.intervalSecondsRemaining = this.intervalWorkDuration;
+                    this.beep(600, 400);
+                }
+            } else if (this.intervalSecondsRemaining <= 3) {
+                // Warning beeps
+                this.beep(800, 100);
+            }
+        }, 1000);
+    },
+    
+    stopIntervalTraining() {
+        clearInterval(this.intervalInterval);
+        this.intervalTimerRunning = false;
+        this.intervalState = 'idle';
+    },
+
+    // Endurance split stopwatch controls
+    startLapTimer() {
+        if (this.lapInterval) return;
+        this.lapInterval = setInterval(() => {
+            this.lapTimer++;
+        }, 100);
+    },
+
+    stopLapTimer() {
+        clearInterval(this.lapInterval);
+        this.lapInterval = null;
+    },
+
+    resetLapTimer() {
+        this.stopLapTimer();
+        this.lapTimer = 0;
+    },
+
+    recordLap(itemId) {
+        let decSeconds = this.lapTimer / 10;
+        let formatted = (Math.floor(decSeconds / 60)) + ':' + (Math.floor(decSeconds % 60)) + '.' + (this.lapTimer % 10);
+        this.logs[itemId].laps.push({
+            lap: this.currentLapIndex++,
+            time: formatted
+        });
+        this.lapTimer = 0;
+    },
+    
+    // Save workout session to backend
+    async finishWorkout() {
+        clearInterval(this.timerInterval);
+        clearInterval(this.lapInterval);
+        clearInterval(this.intervalInterval);
+        
+        let payload = {
+            bucket_id: '{{ bucket.id }}',
+            duration_seconds: this.workoutDuration,
+            rating: this.rating,
+            notes: this.notes,
+            activities: []
+        };
+        
+        for (let itemId in this.logs) {
+            let itemLog = this.logs[itemId];
+            if (itemLog.type === 'strength') {
+                let loggedSets = itemLog.sets.filter(s => s.done).map(s => ({
+                    reps: parseInt(s.reps) || 0,
+                    weight: parseFloat(s.weight) || 0
+                }));
+                if (loggedSets.length > 0) {
+                    payload.activities.push({
+                        title: itemLog.title,
+                        activity_type: 'strength',
+                        logged_data: { sets: loggedSets }
+                    });
+                }
+            } else if (itemLog.type === 'endurance' && itemLog.done) {
+                payload.activities.push({
+                    title: itemLog.title,
+                    activity_type: 'endurance',
+                    logged_data: {
+                        distance: parseFloat(itemLog.distance) || 0,
+                        duration: itemLog.duration,
+                        pace: itemLog.pace,
+                        laps: itemLog.laps
+                    }
+                });
+            } else if (itemLog.type === 'interval' && itemLog.done) {
+                payload.activities.push({
+                    title: itemLog.title,
+                    activity_type: 'interval',
+                    logged_data: {
+                        format: itemLog.format,
+                        duration: itemLog.duration,
+                        completed_rounds: itemLog.completed_rounds,
+                        completed_time: itemLog.completed_time
+                    }
+                });
+            }
+        }
+        
+        try {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            let res = await fetch('{% url "core:workout_log_session" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                // Success! Force reload to display updated charts/history
+                window.location.reload();
+            } else {
+                alert('Fehler beim Speichern der Trainingseinheit.');
+            }
+        } catch(e) {
+            console.error(e);
+            alert('Ein unerwarteter Fehler ist aufgetreten.');
+        }
+    },
+    
+    initWorkoutLogs() {
+        let initialLogs = {};
+        {% for item in active_items %}
+            // Base object with ALL possible fields pre-initialized to safe defaults
+            initialLogs['{{ item.id }}'] = {
+                title: '{{ item.title|escapejs }}',
+                type: '{{ item.workout_type|default:"" }}',
+                // strength fields
+                sets: [],
+                // endurance fields
+                distance: '',
+                duration: '',
+                pace: '',
+                laps: [],
+                // interval fields
+                format: '',
+                completed_rounds: '',
+                completed_time: '',
+                // universal
+                done: false
+            };
+            {% if item.workout_type == 'strength' %}
+                {
+                    let sets = parseInt('{{ item.workout_config_json.sets_count|default:3 }}') || 3;
+                    let repsStr = '{{ item.workout_config_json.target_reps|default:"10" }}';
+                    let weightsStr = '{{ item.workout_config_json.target_weight|default:"50" }}';
+                    let repsArr = repsStr.split(',');
+                    let weightsArr = weightsStr.split(',');
+                    for (let i = 0; i < sets; i++) {
+                        initialLogs['{{ item.id }}'].sets.push({
+                            reps: (repsArr[i] || repsArr[repsArr.length - 1] || '10').trim(),
+                            weight: (weightsArr[i] || weightsArr[weightsArr.length - 1] || '50').trim(),
+                            done: false
+                        });
+                    }
+                }
+            {% elif item.workout_type == 'endurance' %}
+                initialLogs['{{ item.id }}'].distance = '{{ item.workout_config_json.target_distance|default:"" }}';
+                initialLogs['{{ item.id }}'].duration = '{{ item.workout_config_json.target_duration|default:"" }}';
+                initialLogs['{{ item.id }}'].pace     = '{{ item.workout_config_json.target_pace|default:"" }}';
+            {% elif item.workout_type == 'interval' %}
+                initialLogs['{{ item.id }}'].format   = '{{ item.workout_config_json.interval_format|default:"AMRAP" }}';
+                initialLogs['{{ item.id }}'].duration = '{{ item.workout_config_json.interval_duration|default:"" }}';
+            {% endif %}
+        {% endfor %}
+        this.logs = initialLogs;
+    },
+    
+    // Training stats and analytics variables
+    activeTab: 'frequency',
+    selectedStrengthExercise: '',
+    selectedEnduranceExercise: '',
+    strengthExercises: [],
+    enduranceExercises: [],
+    personalRecords: [],
+    charts: {},
+    statsWatched: false,
+    
+    fmtDur(sec) {
+        let h = Math.floor(sec / 3600);
+        let m = Math.floor((sec % 3600) / 60);
+        if (h > 0) return h + ' Std. ' + m + ' Min.';
+        return m + ' Min.';
+    },
+    
+    async deleteSession(sessionId) {
+        if (!confirm('Diese Trainingseinheit wirklich löschen?')) return;
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        try {
+            let res = await fetch('/workout/session/' + sessionId + '/delete/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+            if (res.ok) window.location.reload();
+            else alert('Fehler beim Löschen.');
+        } catch(e) { alert('Netzwerkfehler.'); }
+    },
+    
+    initStats() {
+        const dataEl = document.getElementById('workout-sessions-data');
+        const rawJson = dataEl ? dataEl.textContent.trim() : '';
+        if (!rawJson || rawJson === '[]' || rawJson === 'null') return;
+        try {
+            const sessions = JSON.parse(rawJson);
+            if (sessions.length === 0) return;
+            
+            const strengthSet = new Set();
+            const enduranceSet = new Set();
+            
+            sessions.forEach(s => {
+                s.activities.forEach(a => {
+                    if (a.type === 'strength') strengthSet.add(a.title);
+                    if (a.type === 'endurance') enduranceSet.add(a.title);
+                });
+            });
+            
+            this.strengthExercises = Array.from(strengthSet);
+            this.enduranceExercises = Array.from(enduranceSet);
+            
+            if (this.strengthExercises.length > 0 && !this.selectedStrengthExercise) {
+                this.selectedStrengthExercise = this.strengthExercises[0];
+            }
+            if (this.enduranceExercises.length > 0 && !this.selectedEnduranceExercise) {
+                this.selectedEnduranceExercise = this.enduranceExercises[0];
+            }
+            
+            // Calculate KPIs
+            const totalSessions = sessions.length;
+            let totalSeconds = 0;
+            let totalRating = 0;
+            sessions.forEach(s => {
+                totalSeconds += s.duration_minutes * 60;
+                totalRating += s.rating;
+            });
+            
+            const kpiSessions = document.getElementById('kpi-total-sessions');
+            const kpiTime = document.getElementById('kpi-total-time');
+            const kpiRating = document.getElementById('kpi-avg-rating');
+            const kpiFreq = document.getElementById('kpi-frequency');
+            
+            if (kpiSessions) kpiSessions.innerText = totalSessions;
+            if (kpiTime) kpiTime.innerText = Math.round(totalSeconds / 3600) + ' Std.';
+            if (kpiRating) kpiRating.innerText = (totalRating / totalSessions).toFixed(1) + ' ★';
+            
+            if (sessions.length > 0 && kpiFreq) {
+                const firstDate = new Date(sessions[0].isoDate);
+                const lastDate = new Date(sessions[sessions.length - 1].isoDate);
+                const days = Math.max(1, Math.round((lastDate - firstDate) / (1000 * 60 * 60 * 24)));
+                const weeks = Math.max(1, days / 7);
+                kpiFreq.innerText = (totalSessions / weeks).toFixed(1) + ' / Wo.';
+            } else if (kpiFreq) {
+                kpiFreq.innerText = '-';
+            }
+            
+            // Calculate Personal Records (PRs)
+            this.personalRecords = this.calcPRs(sessions);
+            
+            this.redraw(sessions);
+            
+            // Setup watches if not done already
+            if (!this.statsWatched) {
+                this.$watch('activeTab', value => this.redraw(sessions));
+                this.$watch('selectedStrengthExercise', value => this.redraw(sessions));
+                this.$watch('selectedEnduranceExercise', value => this.redraw(sessions));
+                this.statsWatched = true;
+            }
+        } catch (e) {
+            console.error("Fehler beim Initialisieren der Statistiken:", e);
+        }
+    },
+    
+    calcPRs(sessions) {
+        const prs = {};
+        sessions.forEach(s => {
+            s.activities.forEach(a => {
+                if (a.type === 'strength' && a.data.sets) {
+                    if (!prs[a.title]) prs[a.title] = { maxWeight: 0, maxVol: 0, date: '' };
+                    let vol = 0;
+                    a.data.sets.forEach(set => {
+                        const w = parseFloat(set.weight) || 0;
+                        const r = parseInt(set.reps) || 0;
+                        if (w > prs[a.title].maxWeight) {
+                            prs[a.title].maxWeight = w;
+                            prs[a.title].date = s.date;
+                        }
+                        vol += w * r;
+                    });
+                    if (vol > prs[a.title].maxVol) prs[a.title].maxVol = vol;
+                }
+            });
+        });
+        return Object.entries(prs).map(([title, d]) => ({
+            title, maxWeight: d.maxWeight, maxVol: Math.round(d.maxVol), date: d.date
+        })).filter(p => p.maxWeight > 0);
+    },
+    
+    redraw(sessions) {
+        this.destroyCharts();
+        if (this.activeTab === 'frequency') {
+            this.renderFrequencyChart(sessions);
+        } else if (this.activeTab === 'strength') {
+            this.renderStrengthChart(sessions);
+        } else if (this.activeTab === 'endurance') {
+            this.renderEnduranceChart(sessions);
+        }
+    },
+    
+    destroyCharts() {
+        if (this.charts.main) {
+            this.charts.main.destroy();
+            this.charts.main = null;
+        }
+    },
+    
+    renderFrequencyChart(sessions) {
+        const canvas = document.getElementById('analytics-chart-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const labels = sessions.map(s => s.date);
+        const durations = sessions.map(s => s.duration_minutes);
+        const ratings = sessions.map(s => s.rating);
+        
+        this.charts.main = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Dauer (Min.)',
+                        data: durations,
+                        borderColor: '#00b0ff',
+                        backgroundColor: 'rgba(0, 176, 255, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.3,
+                        fill: true,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Bewertung (★)',
+                        data: ratings,
+                        borderColor: '#ffab00',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        tension: 0.1,
+                        pointStyle: 'star',
+                        pointRadius: 6,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        ticks: { color: 'rgba(255, 255, 255, 0.6)' }
+                    },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: { display: true, text: 'Dauer (Min.)', color: '#00b0ff' },
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        ticks: { color: 'rgba(255, 255, 255, 0.6)' }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        min: 1,
+                        max: 5,
+                        title: { display: true, text: 'Bewertung (Sterne)', color: '#ffab00' },
+                        grid: { drawOnChartArea: false },
+                        ticks: { stepSize: 1, color: 'rgba(255, 255, 255, 0.6)' }
+                    }
+                },
+                plugins: {
+                    legend: { labels: { color: '#fff' } }
+                }
+            }
+        });
+    },
+    
+    renderStrengthChart(sessions) {
+        if (!this.selectedStrengthExercise) return;
+        const canvas = document.getElementById('analytics-chart-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        
+        const labels = [];
+        const maxWeights = [];
+        const volumes = [];
+        
+        sessions.forEach(s => {
+            s.activities.forEach(a => {
+                if (a.title === this.selectedStrengthExercise && a.type === 'strength' && a.data.sets) {
+                    labels.push(s.date);
+                    let maxW = 0;
+                    let vol = 0;
+                    a.data.sets.forEach(set => {
+                        const w = parseFloat(set.weight) || 0;
+                        const r = parseInt(set.reps) || 0;
+                        if (w > maxW) maxW = w;
+                        vol += w * r;
+                    });
+                    maxWeights.push(maxW);
+                    volumes.push(vol);
+                }
+            });
+        });
+        
+        this.charts.main = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Maximalgewicht (kg)',
+                        data: maxWeights,
+                        borderColor: '#00e676',
+                        backgroundColor: 'rgba(0, 230, 118, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.2,
+                        fill: true,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Gesamtvolumen (kg)',
+                        data: volumes,
+                        borderColor: '#ff5252',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        borderDash: [3, 3],
+                        tension: 0.2,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        ticks: { color: 'rgba(255, 255, 255, 0.6)' }
+                    },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: { display: true, text: 'Maximalgewicht (kg)', color: '#00e676' },
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        ticks: { color: 'rgba(255, 255, 255, 0.6)' }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: { display: true, text: 'Gesamtvolumen (kg)', color: '#ff5252' },
+                        grid: { drawOnChartArea: false },
+                        ticks: { color: 'rgba(255, 255, 255, 0.6)' }
+                    }
+                },
+                plugins: {
+                    legend: { labels: { color: '#fff' } }
+                }
+            }
+        });
+    },
+    
+    renderEnduranceChart(sessions) {
+        if (!this.selectedEnduranceExercise) return;
+        const canvas = document.getElementById('analytics-chart-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        
+        const labels = [];
+        const distances = [];
+        const paces = [];
+        
+        sessions.forEach(s => {
+            s.activities.forEach(a => {
+                if (a.title === this.selectedEnduranceExercise && a.type === 'endurance') {
+                    labels.push(s.date);
+                    distances.push(parseFloat(a.data.distance) || 0);
+                    
+                    let paceMin = 0;
+                    if (a.data.pace) {
+                        const parts = a.data.pace.toString().replace(':', '.').split('.');
+                        const min = parseFloat(parts[0]) || 0;
+                        const sec = parseFloat(parts[1]) || 0;
+                        paceMin = min + (sec / 60);
+                    }
+                    paces.push(paceMin);
+                }
+            });
+        });
+        
+        this.charts.main = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Distanz (km)',
+                        data: distances,
+                        borderColor: '#00b0ff',
+                        backgroundColor: 'rgba(0, 176, 255, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.2,
+                        fill: true,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Pace (Min/km)',
+                        data: paces,
+                        borderColor: '#e040fb',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.2,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        ticks: { color: 'rgba(255, 255, 255, 0.6)' }
+                    },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: { display: true, text: 'Distanz (km)', color: '#00b0ff' },
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        ticks: { color: 'rgba(255, 255, 255, 0.6)' }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        reverse: true,
+                        title: { display: true, text: 'Pace (Min/km)', color: '#e040fb' },
+                        grid: { drawOnChartArea: false },
+                        ticks: { 
+                            color: 'rgba(255, 255, 255, 0.6)',
+                            callback: function(val) {
+                                const min = Math.floor(val);
+                                const sec = Math.round((val - min) * 60);
+                                return min + ':' + (sec < 10 ? '0' : '') + sec;
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { labels: { color: '#fff' } }
+                }
+            }
+        });
+    }
+    }));
+});
+</script>
+
+<div class="container py-2" x-data="listDetail()" @click.away="showShare = false">
+
+<!-- Hidden csrf token input for ajax logging -->
+<form class="d-none">{% csrf_token %}</form>
+
+<div class="list-header mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                {% if user.is_authenticated %}
+                    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Dashboard</a></li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{% url 'core:home' %}{% if user.is_authenticated %}?start=1{% endif %}">Startseite</a></li>
+                {% endif %}
+                <li class="breadcrumb-item active" aria-current="page">{{ bucket.title }}</li>
+            </ol>
+        </nav>
+
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" onclick="window.history.back()" class="btn btn-outline-secondary btn-sm" title="Zurück">
+                <i class="bi bi-arrow-left"></i>
+            </button>
+            <button type="button" onclick="window.location.reload()" class="btn btn-outline-secondary btn-sm" title="Aktualisieren">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <button type="button" @click="showHelpModal = true" class="btn btn-outline-primary btn-sm" title="Anleitung & Details">
+                <i class="bi bi-question-circle"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="card shadow-sm rounded-4">
+        <div class="card-body p-3 p-md-4 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+            <div>
+                <div class="d-flex align-items-center gap-2">
+                    {% if not bucket.has_icon_in_title %}
+                    <span class="fs-2">
+                        {% if bucket.category.icon|slice:":3" == "bi-" %}<i class="bi {{ bucket.category.icon }} text-primary"></i>{% else %}{{ bucket.category.icon }}{% endif %}
+                    </span>
+                    {% endif %}
+                    <h1 class="h2 fw-bold mb-0">{{ bucket.title }}</h1>
+                </div>
+                <p class="text-muted small mb-0 mt-1">{{ bucket.category.name }}</p>
+            </div>
+
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                {% if bucket.category.template.logic_type == 'workout' and active_items %}
+                    <button type="button" @click="startWorkout()" class="btn btn-success">
+                        <i class="bi bi-play-fill me-1"></i>Training Starten
+                    </button>
+                {% endif %}
+
+                <button type="button" @click="showPrintModal = true" class="btn btn-outline-secondary" title="PDF Export">
+                    <i class="bi bi-file-earmark-pdf me-1"></i>PDF Export
+                </button>
+                {% if bucket.owner == user %}
+                    <button type="button" class="btn btn-outline-primary" @click="showShare = !showShare" title="Teilen">
+                        <i class="bi bi-share me-1"></i>Teilen
+                    </button>
+                    <a href="{% url 'admin:core_bucketlist_change' bucket.id %}" class="btn btn-outline-secondary" title="Liste konfigurieren">
+                        <i class="bi bi-gear me-1"></i>Konfigurieren
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div x-show="showShare">
+        {% include 'core/partials/share_controls.html' %}
+    </div>
+</div>
+
+{% if can_edit %}
+    <script src="{% static 'vendor/js/Sortable.min.js' %}"></script>
+    
+{% endif %}
+
+{% if bucket.category.template.logic_type == 'nutrition' %}
+    {% include 'core/partials/nutrition_widget.html' %}
+{% endif %}
+
+{% if bucket.category.template.logic_type == 'workout' %}
+    <script src="{% static 'vendor/js/chart.min.js' %}"></script>
+    <!-- Workout Stats Header Widget -->
+    {% if user_settings %}
+    <div class="kpi-bento-grid mb-3">
+        {% include "design_studio/components/kpi_card.html" with title="Gewicht" value=user_settings.gym_weight|default:"-"|add:" kg" icon="bi-speedometer2" size="sm" state=1 %}
+        {% include "design_studio/components/kpi_card.html" with title="Fitness-Ziel" value=user_settings.gym_fitness_goal|default:"-" icon="bi-trophy" size="sm" state=2 %}
+    </div>
+
+    <div class="card shadow-sm rounded-4 mb-3">
+        <div class="card-body p-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="d-flex flex-wrap gap-2">
+                {% if user_settings.gym_body_measurements_json %}
+                    {% for key, val in user_settings.gym_body_measurements_json.items %}
+                        {% if val %}
+                        <span class="badge text-bg-secondary">{{ key }}: {{ val }} cm</span>
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                {% if user_settings.gym_nutrition_plan_url %}
+                    <a href="{{ user_settings.gym_nutrition_plan_url }}" target="_blank" class="btn btn-outline-success btn-sm">
+                        <i class="bi bi-journal-text me-1"></i>Ernährungsplan
+                    </a>
+                {% endif %}
+                <a href="{% url 'core:settings' %}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-sliders me-1"></i>Maße aktualisieren
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {% if user_settings.gym_plan_adaptation_weeks %}
+        <div class="alert alert-info d-flex align-items-start gap-2 rounded-4 mb-3">
+            <i class="bi bi-lightbulb fs-5"></i>
+            <div>
+                <div class="fw-bold small">Trainer-Tipp zur Trainingsanpassung (Alle {{ user_settings.gym_plan_adaptation_weeks }} Wochen):</div>
+                <div class="small">{{ user_settings.gym_plan_adaptation_message|default:"Bitte melde dich beim Trainer für einen neuen Plan, damit die Fortschritte möglich sind." }}</div>
+            </div>
+        </div>
+    {% endif %}
+    {% endif %}
+    <!-- Hidden item list div for HTMX targeting without error in workout mode -->
+    <div id="item-list"></div>
+
+    <!-- Exercises & Plans Config Dashboard -->
+    <div class="card shadow-sm rounded-4 mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h3 class="h6 fw-bold mb-0"><i class="bi bi-list-check me-1"></i>Übungsplan Übersicht</h3>
+            {% if can_edit %}
+            <button type="button" hx-get="{% url 'core:get_add_form' bucket.id %}" hx-target="#form-insertion-point" hx-swap="innerHTML" class="btn btn-light btn-sm">
+                <i class="bi bi-plus-circle me-1"></i>Übung hinzufügen
+            </button>
+            {% endif %}
+        </div>
+
+        <div class="card-body d-flex flex-column gap-2" id="exercise-sortable-list">
+            {% for item in active_items %}
+                <div class="border rounded-3 p-3 d-flex flex-wrap justify-content-between align-items-start gap-2" data-id="{{ item.id }}">
+                    <div class="d-flex align-items-start gap-2">
+                        {% if can_edit %}
+                        <span class="drag-handle btn btn-sm btn-outline-secondary border-0 px-1" title="Ziehen zum Verschieben">
+                            <i class="bi bi-grip-vertical"></i>
+                        </span>
+                        {% endif %}
+                        <div>
+                            <h4 class="h6 fw-bold mb-1">
+                                <i class="bi {% if item.workout_type == 'strength' %}bi-lightning-charge{% elif item.workout_type == 'endurance' %}bi-activity{% else %}bi-stopwatch{% endif %} me-1"></i>
+                                {{ item.title }}
+                            </h4>
+                            <div class="small text-muted d-flex flex-wrap gap-2">
+                                {% if item.workout_type == 'strength' %}
+                                    <span>Sets: <strong>{{ item.workout_config_json.sets_count|default:3 }}</strong></span>
+                                    <span>&bull;</span>
+                                    <span>Ziel-Wdh.: <strong>{{ item.workout_config_json.target_reps|default:"10,8,6" }}</strong></span>
+                                    <span>&bull;</span>
+                                    <span>Ziel-Gewicht: <strong>{{ item.workout_config_json.target_weight|default:"50" }} kg</strong></span>
+                                    <span>&bull;</span>
+                                    <span>Pause: <strong>{{ item.workout_config_json.rest_time|default:120 }}s</strong></span>
+                                {% elif item.workout_type == 'endurance' %}
+                                    <span>Ziel-Distanz: <strong>{{ item.workout_config_json.target_distance|default:"-" }} km</strong></span>
+                                    <span>&bull;</span>
+                                    <span>Ziel-Dauer: <strong>{{ item.workout_config_json.target_duration|default:"-" }} Min.</strong></span>
+                                    <span>&bull;</span>
+                                    <span>Ziel-Pace: <strong>{{ item.workout_config_json.target_pace|default:"-" }} Min/km</strong></span>
+                                {% elif item.workout_type == 'interval' %}
+                                    <span>Format: <strong>{{ item.workout_config_json.interval_format|default:"AMRAP" }}</strong></span>
+                                    <span>&bull;</span>
+                                    <span>Dauer: <strong>{{ item.workout_config_json.interval_duration|default:"-" }} Min.</strong></span>
+                                {% endif %}
+                            </div>
+                            {% if item.notes %}
+                                <div class="small text-muted mt-1"><i class="bi bi-lightbulb me-1"></i>{{ item.notes }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if can_edit %}
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" hx-get="{% url 'core:get_edit_form' bucket.id item.id %}" hx-target="#form-insertion-point" hx-swap="innerHTML" class="btn btn-outline-secondary">Bearbeiten</button>
+                        <form hx-post="{% url 'core:delete_item' item.id %}" hx-target="#item-list" hx-swap="innerHTML" hx-on::after-request="if(event.detail.successful) { window.location.reload(); }" hx-confirm="Bist du sicher, dass du diese Übung entfernen willst?" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-danger btn-sm">Löschen</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+            {% empty %}
+                <div>
+                    Hier sind noch keine Übungen eingetragen. Klicke oben rechts auf "+ Übung hinzufügen", um deinen Trainingsplan zu bestücken!
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Workout Stats & Analytics Card -->
+    {% if workout_sessions %}
+    <div class="card shadow-sm rounded-4 mb-3">
+        <div @click="showStats = !showStats; if (showStats) { $nextTick(() => initStats()); }">
+            <h3>
+                <span>📊</span> Trainings-Statistik & Analysen
+            </h3>
+            <span :style="showStats ? 'transform: rotate(90deg);' : ''">▶</span>
+        </div>
+        
+        <div x-show="showStats" x-transition>
+            <!-- KPI Grid -->
+            <div>
+                <div>
+                    <div>Gesamte Einheiten</div>
+                    <div id="kpi-total-sessions">-</div>
+                </div>
+                <div>
+                    <div>Trainingszeit gesamt</div>
+                    <div id="kpi-total-time">-</div>
+                </div>
+                <div>
+                    <div>Ø Bewertung</div>
+                    <div id="kpi-avg-rating">-</div>
+                </div>
+                <div>
+                    <div>Ø Frequenz</div>
+                    <div id="kpi-frequency">-</div>
+                </div>
+            </div>
+            
+            <!-- Tab Controls -->
+            <div>
+                <button type="button" @click="activeTab = 'frequency'" :style="activeTab === 'frequency' ? 'background: var(--accent); color: #000; border-color: var(--accent);' : ''" class="btn btn-outline-secondary">📈 Frequenz & Dauer</button>
+                <button type="button" @click="activeTab = 'strength'" :style="activeTab === 'strength' ? 'background: var(--accent); color: #000; border-color: var(--accent);' : ''" class="btn btn-outline-secondary" x-show="strengthExercises.length > 0">💪 Kraft-Steigerung</button>
+                <button type="button" @click="activeTab = 'endurance'" :style="activeTab === 'endurance' ? 'background: var(--accent); color: #000; border-color: var(--accent);' : ''" class="btn btn-outline-secondary" x-show="enduranceExercises.length > 0">🏃 Ausdauer-Entwicklung</button>
+            </div>
+            
+            <!-- Filters for specific tabs -->
+            <div x-show="activeTab === 'strength' && strengthExercises.length > 0">
+                <span>Kraftübung auswählen:</span>
+                <select x-model="selectedStrengthExercise" class="form-select">
+                    <template x-for="ex in strengthExercises" :key="ex">
+                        <option :value="ex" x-text="ex"></option>
+                    </template>
+                </select>
+            </div>
+            <div x-show="activeTab === 'endurance' && enduranceExercises.length > 0">
+                <span>Ausdauerübung auswählen:</span>
+                <select x-model="selectedEnduranceExercise" class="form-select">
+                    <template x-for="ex in enduranceExercises" :key="ex">
+                        <option :value="ex" x-text="ex"></option>
+                    </template>
+                </select>
+            </div>
+            
+            <!-- Chart Canvas Container -->
+            <div>
+                <canvas id="analytics-chart-canvas"></canvas>
+            </div>
+            
+            <!-- Personal Records Section -->
+            <div x-show="personalRecords.length > 0">
+                <h4>🏆 Persönliche Bestleistungen (PRs)</h4>
+                <div>
+                    <template x-for="pr in personalRecords" :key="pr.title">
+                        <div>
+                            <div>
+                                <span>💪</span> <span x-text="pr.title"></span>
+                            </div>
+                            <div>
+                                <div>
+                                    <span>Max:</span>
+                                    <strong x-text="pr.maxWeight + ' kg'"></strong>
+                                </div>
+                                <div>
+                                    <span>Vol:</span>
+                                    <strong x-text="pr.maxVol + ' kg'"></strong>
+                                </div>
+                            </div>
+                            <div x-text="'PR am ' + pr.date"></div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Workout Logs Progression History section -->
+    <div class="card shadow-sm rounded-4 mb-3">
+        <h3>
+            <span>📈 Leistungsverlauf & Historie</span>
+        </h3>
+        
+        <div>
+            {% for session in workout_sessions %}
+                <div x-show="visibleHistoryLimit > {{ forloop.counter0 }}">
+                    <div>
+                        <div>
+                            <span>📅 Workout am {{ session.date|date:"d.m.Y H:i" }}</span>
+                            <span>Abgeschlossen</span>
+                        </div>
+                        <div>
+                            <span>Dauer: <strong x-text="fmtDur({{ session.duration_seconds }})"></strong></span>
+                            <span>Bewertung: <strong>{% for i in "12345" %}{% if forloop.counter <= session.rating %}★{% else %}☆{% endif %}{% endfor %}</strong></span>
+                            {% if bucket.owner == user %}
+                            <button @click="deleteSession({{ session.id }})" title="Löschen" onmouseover="this.style.background='rgba(255,82,82,0.15)'" onmouseout="this.style.background='none'">🗑️</button>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if session.notes %}
+                        <p>
+                            📝 {{ session.notes }}
+                        </p>
+                    {% endif %}
+
+                    <div>
+                        {% for act in session.activities.all %}
+                            <div>
+                                <span>•</span>
+                                <div>
+                                    <strong>{{ act.title }}</strong>:
+                                    {% if act.activity_type == 'strength' %}
+                                        <span>
+                                            {% for set in act.logged_data_json.sets %}
+                                                Set {{ forloop.counter }}: {{ set.reps }} Wdh. mit {{ set.weight }} kg{% if not forloop.last %}, {% endif %}
+                                            {% endfor %}
+                                        </span>
+                                    {% elif act.activity_type == 'endurance' %}
+                                        <span>
+                                            Distanz: <strong>{{ act.logged_data_json.distance }} km</strong> in <strong>{{ act.logged_data_json.duration }} Min.</strong> (Pace: <strong>{{ act.logged_data_json.pace }} Min/km</strong>)
+                                            {% if act.logged_data_json.laps %}
+                                                <div>
+                                                    Lap Splits: {% for lap in act.logged_data_json.laps %}R{{ lap.lap }}: {{ lap.time }}s{% if not forloop.last %}, {% endif %}{% endfor %}
+                                                </div>
+                                            {% endif %}
+                                        </span>
+                                    {% elif act.activity_type == 'interval' %}
+                                        <span>
+                                            Format: {{ act.logged_data_json.format }} (Dauer: {{ act.logged_data_json.duration }} Min.) | Absolviert: <strong>{{ act.logged_data_json.completed_rounds }} Runden</strong> in <strong>{{ act.logged_data_json.completed_time }}s</strong>
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% empty %}
+                <div>
+                    Bisher wurden keine Workouts protokolliert. Starte deine erste Einheit mit dem "Training Starten" Button!
+                </div>
+            {% endfor %}
+        </div>
+        
+        {% if workout_sessions|length > 10 %}
+            <div x-show="visibleHistoryLimit < {{ workout_sessions|length }}">
+                <button type="button" @click="visibleHistoryLimit += 10" class="btn btn-outline-secondary">
+                    <span>⬇️ Mehr anzeigen</span>
+                </button>
+            </div>
+        {% endif %}
+    </div>
+
+{% else %}
+    <!-- Generic checklists / bucket lists rendering -->
+    <div class="card shadow-sm rounded-4 mb-4">
+        <div class="card-body border-bottom py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="input-group w-auto flex-grow-1">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="text"
+                       name="q"
+                       placeholder="Einträge suchen / filtern..."
+                       hx-get="{% url 'core:list_detail' bucket.id %}"
+                       hx-trigger="keyup changed delay:200ms"
+                       hx-target="#item-list"
+                       hx-swap="innerHTML"
+                       class="form-control">
+            </div>
+
+            <div class="btn-group btn-group-sm" role="group" aria-label="Ansicht wechseln"
+                 x-data="{ layoutMode: '{{ ui.layout_mode|default:'row'|escapejs }}' }">
+                <button type="button"
+                        class="btn"
+                        :class="layoutMode === 'row' ? 'btn-primary' : 'btn-outline-secondary'"
+                        title="Listenansicht"
+                        @click="layoutMode = 'row'"
+                        hx-post="{% url 'core:toggle_list_layout' bucket.id %}"
+                        hx-vals='{"layout_mode": "row"}'
+                        hx-target="#item-list"
+                        hx-swap="innerHTML">
+                    <i class="bi bi-list-ul"></i>
+                </button>
+                <button type="button"
+                        class="btn"
+                        :class="layoutMode === 'cards' ? 'btn-primary' : 'btn-outline-secondary'"
+                        title="Kartenansicht"
+                        @click="layoutMode = 'cards'"
+                        hx-post="{% url 'core:toggle_list_layout' bucket.id %}"
+                        hx-vals='{"layout_mode": "cards"}'
+                        hx-target="#item-list"
+                        hx-swap="innerHTML">
+                    <i class="bi bi-grid"></i>
+                </button>
+                <button type="button"
+                        class="btn"
+                        :class="layoutMode === 'stacked' ? 'btn-primary' : 'btn-outline-secondary'"
+                        title="Detail-Stapel"
+                        @click="layoutMode = 'stacked'"
+                        hx-post="{% url 'core:toggle_list_layout' bucket.id %}"
+                        hx-vals='{"layout_mode": "stacked"}'
+                        hx-target="#item-list"
+                        hx-swap="innerHTML">
+                    <i class="bi bi-view-stacked"></i>
+                </button>
+            </div>
+
+            {% if can_edit %}
+            <button type="button"
+                    hx-get="{% url 'core:get_add_form' bucket.id %}"
+                    hx-target="#form-insertion-point"
+                    hx-swap="innerHTML"
+                    class="btn btn-primary">
+                <i class="bi bi-plus-circle me-1"></i>Hinzufügen
+            </button>
+            {% endif %}
+        </div>
+
+        <div class="card-body p-0">
+            <div id="item-list">
+                {% include 'core/partials/item_list.html' %}
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+<!-- IMMERSIVE PWAA GYM COCKPIT WINDOW (FULL-SCREEN MODE) -->
+<template x-if="gymMode">
+<div class="modal d-block show bg-dark bg-opacity-75" tabindex="-1">
+    <div class="modal-dialog modal-fullscreen modal-dialog-scrollable">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div>
+                <span class="badge text-bg-primary mb-1"><i class="bi bi-activity me-1"></i>Gym Cockpit</span>
+                <h2 class="h5 fw-bold mb-0">{{ bucket.title }}</h2>
+            </div>
+
+            <div class="text-end">
+                <div class="h4 fw-bold text-primary mb-0" x-text="formatTime(workoutDuration)">00:00</div>
+                <span class="small text-muted">Workout Zeit</span>
+            </div>
+        </div>
+        <div class="modal-body d-flex flex-column gap-3">
+
+        <!-- Global Rest Timer Widget inside cockpit -->
+        <div x-show="activeRestTimer">
+            <div>
+                <div>
+                    <div :style="`position: absolute; inset: 0; background: conic-gradient(var(--accent) ${restProgress}%, transparent 0%); opacity: 0.2;`"></div>
+                    <span>⏱️</span>
+                </div>
+                <div>
+                    <div>Pause läuft...</div>
+                    <div>Mach dich bereit für den nächsten Satz!</div>
+                </div>
+            </div>
+            
+            <div>
+                <span x-text="restTimeRemaining + 's'">0s</span>
+                <button @click="clearInterval(activeRestTimer); activeRestTimer = null;" class="btn">Überspringen</button>
+            </div>
+        </div>
+
+        <!-- Cockpit Body: Exercise carousel/list -->
+        <div>
+            <div>
+                <span>
+                    Übung <strong x-text="(currentExerciseIndex + 1)">1</strong> von <strong>{{ active_items|length }}</strong>
+                </span>
+                
+                <div>
+                    <button @click="if (currentExerciseIndex > 0) currentExerciseIndex--" class="btn btn-outline-secondary" :disabled="currentExerciseIndex === 0">&larr; Zurück</button>
+                    <button @click="if (currentExerciseIndex < {{ active_items|length }} - 1) currentExerciseIndex++" class="btn btn-outline-secondary" :disabled="currentExerciseIndex === {{ active_items|length }} - 1">Weiter &rarr;</button>
+                </div>
+            </div>
+
+            <!-- Exercises Loop in cockpit -->
+            {% for item in active_items %}
+                <div x-show="exerciseIndices[currentExerciseIndex] === {{ forloop.counter0 }}">
+                    <div>
+                        <div>
+                            <div>
+                                <span>
+                                    {{ item.get_workout_type_display }}
+                                </span>
+                                <h3>{{ item.title }}</h3>
+                            </div>
+                            
+                            <!-- Shift one position back if device/machine is busy -->
+                            <button type="button" 
+                                    x-show="currentExerciseIndex < exerciseIndices.length - 1"
+                                    @click="
+                                        const temp = exerciseIndices[currentExerciseIndex];
+                                        exerciseIndices[currentExerciseIndex] = exerciseIndices[currentExerciseIndex + 1];
+                                        exerciseIndices[currentExerciseIndex + 1] = temp;
+                                        exerciseIndices = [...exerciseIndices];
+                                    " class="btn btn-outline-secondary" title="Übung um eine Position nach hinten verschieben (z.B. wenn das Gerät belegt ist)">
+                                <span>➡️ Eins nach hinten verschieben</span>
+                            </button>
+                        </div>
+
+                        {% if item.notes %}
+                            <p>
+                                💡 Tipp: {{ item.notes }}
+                            </p>
+                        {% endif %}
+
+                        <!-- Dynamic workout type views -->
+                        {% if item.workout_type == 'strength' %}
+                            <!-- Strength sets checkpoints -->
+                            <div>
+                                <template x-if="logs['{{ item.id }}']">
+                                    <template x-for="(set, idx) in logs['{{ item.id }}'].sets" :key="idx">
+                                        <div>
+                                            <div>
+                                                <button @click="toggleSet('{{ item.id }}', idx, {{ item.workout_config_json.rest_time|default:120 }})" 
+                                                        class="btn" 
+                                                        :style="set.done ? 'background: #00e676; border-color: #00e676; color: #000;' : 'background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.25);'">
+                                                    <span x-text="set.done ? '✓' : (idx + 1)"></span>
+                                                </button>
+                                                <span>Satz <span x-text="(idx + 1)"></span></span>
+                                            </div>
+
+                                            <div>
+                                                <!-- Repetitions counter controller -->
+                                                <div>
+                                                    <span>Wdh.</span>
+                                                    <div>
+                                                        <button @click="if (parseInt(set.reps) > 0) set.reps = parseInt(set.reps) - 1" class="btn">-</button>
+                                                        <input type="text" x-model="set.reps">
+                                                        <button @click="set.reps = parseInt(set.reps) + 1" class="btn">+</button>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Weight counter controller -->
+                                                <div>
+                                                    <span>Gewicht</span>
+                                                    <div>
+                                                        <button @click="if (parseFloat(set.weight) >= 2.5) set.weight = (parseFloat(set.weight) - 2.5).toString()" class="btn">-</button>
+                                                        <input type="text" x-model="set.weight">
+                                                        <button @click="set.weight = (parseFloat(set.weight) + 2.5).toString()" class="btn">+</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </template>
+                            </div>
+
+                        {% elif item.workout_type == 'endurance' %}
+                            <!-- Endurance widgets (Distance, Laps & stopwatch splits) -->
+                            <div>
+                                <div>
+                                    <div>
+                                        <div>Ziel Distanz</div>
+                                        <strong>{{ item.workout_config_json.target_distance|default:"-" }} km</strong>
+                                    </div>
+                                    <div>
+                                        <div>Ziel Dauer</div>
+                                        <strong>{{ item.workout_config_json.target_duration|default:"-" }} Min.</strong>
+                                    </div>
+                                    <div>
+                                        <div>Ziel Pace</div>
+                                        <strong>{{ item.workout_config_json.target_pace|default:"-" }} Min/km</strong>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h4>⏱️ Rundenzeiten Stoppuhr</h4>
+                                    
+                                    <div>
+                                        <span>
+                                            <span x-text="Math.floor(lapTimer / 600)">0</span>:<span x-text="Math.floor((lapTimer / 10) % 60) < 10 ? '0' : ''"></span><span x-text="Math.floor((lapTimer / 10) % 60)">0</span>.<span x-text="lapTimer % 10">0</span>
+                                        </span>
+                                        
+                                        <div>
+                                            <button @click="startLapTimer()" class="btn">Start</button>
+                                            <button @click="stopLapTimer()" class="btn">Stop</button>
+                                            <button @click="recordLap('{{ item.id }}')" class="btn" :disabled="lapTimer === 0">Split</button>
+                                            <button @click="resetLapTimer()" class="btn">Reset</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Recorded Lap Splits Carousel/table -->
+                                    <template x-if="logs['{{ item.id }}'] && logs['{{ item.id }}'].laps.length > 0">
+                                        <div class="table-responsive">
+                                            <table class="table table-hover align-middle mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Runde</th>
+                                                        <th>Zwischenzeit</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <template x-for="lap in logs['{{ item.id }}'].laps" :key="lap.lap">
+                                                        <tr>
+                                                            <td x-text="'Lap ' + lap.lap"></td>
+                                                            <td x-text="lap.time + 's'"></td>
+                                                        </tr>
+                                                    </template>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </template>
+                                </div>
+
+                                <div>
+                                    <h4>Tatsächlicher Lauf / Fahrt loggen:</h4>
+                                    <div>
+                                        <input type="text" placeholder="Distanz (km)" x-model="logs['{{ item.id }}'].distance" class="form-control">
+                                        <input type="text" placeholder="Dauer (Min.)" x-model="logs['{{ item.id }}'].duration" class="form-control">
+                                        <input type="text" placeholder="Pace (Min/km)" x-model="logs['{{ item.id }}'].pace" class="form-control">
+                                    </div>
+                                    <label>
+                                        <input type="checkbox" x-model="logs['{{ item.id }}'].done">
+                                        <span>Als erledigt markieren</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                        {% elif item.workout_type == 'interval' %}
+                            <!-- HIIT Interval cycle timer with circular beeper -->
+                            <div>
+                                <div>
+                                    <h4>⏱️ Intervall-Taktgeber (Work & Rest Beep)</h4>
+                                    
+                                    <div>
+                                        <div>
+                                            <label>Belastung (s)</label>
+                                            <input type="number" x-model="intervalWorkDuration" class="form-control">
+                                        </div>
+                                        <div>
+                                            <label>Erholung (s)</label>
+                                            <input type="number" x-model="intervalRestDuration" class="form-control">
+                                        </div>
+                                        <div>
+                                            <label>Runden</label>
+                                            <input type="number" x-model="intervalTotalRounds" class="form-control">
+                                        </div>
+                                    </div>
+
+                                    <!-- Beeper State display panel -->
+                                    <div :style="intervalState === 'work' ? 'background: rgba(0, 230, 118, 0.15); border-color: #00e676;' : (intervalState === 'rest' ? 'background: rgba(255, 82, 82, 0.15); border-color: #ff5252;' : 'background: rgba(255,255,255,0.02);')">
+                                        <div x-text="intervalState === 'work' ? '⚡ BELASTUNG' : (intervalState === 'rest' ? '💤 ERHOLUNG' : 'BEREIT')"></div>
+                                        <div x-text="intervalSecondsRemaining + 's'">0s</div>
+                                        <div>Runde <span x-text="intervalRound">1</span> von <span x-text="intervalTotalRounds">8</span></div>
+                                    </div>
+
+                                    <div>
+                                        <button @click="startIntervalTraining()" class="btn" :disabled="intervalTimerRunning">Start Timer</button>
+                                        <button @click="stopIntervalTraining()" class="btn" :disabled="!intervalTimerRunning">Stop Timer</button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h4>Runden loggen:</h4>
+                                    <div>
+                                        <input type="text" placeholder="Runden geschafft" x-model="logs['{{ item.id }}'].completed_rounds" class="form-control">
+                                        <input type="text" placeholder="Dauer (Min/Sek)" x-model="logs['{{ item.id }}'].completed_time" class="form-control">
+                                    </div>
+                                    <label>
+                                        <input type="checkbox" x-model="logs['{{ item.id }}'].done">
+                                        <span>Als erledigt markieren</span>
+                                    </label>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        </div>
+        <!-- Cockpit Footer options -->
+        <div class="modal-footer justify-content-between">
+            <button type="button" @click="clearInterval(timerInterval); clearInterval(lapInterval); clearInterval(intervalInterval); gymMode = false; workoutStarted = false;" class="btn btn-outline-secondary">Training abbrechen</button>
+            <button type="button" @click="showLogSessionModal = true" class="btn btn-success"><i class="bi bi-flag-fill me-1"></i>Training beenden</button>
+        </div>
+
+    </div>
+    </div>
+</div>
+</template>
+
+<!-- COMPLETED WORKOUT LOG MODAL -->
+<template x-if="showLogSessionModal">
+<div class="modal d-block show bg-dark bg-opacity-75 p-2 p-sm-3" @click.self="showLogSessionModal = false">
+    <div class="modal-dialog modal-dialog-centered mw-100 mx-auto modal-dialog-scrollable">
+        <div class="modal-content rounded-4 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Training geschafft!</h5>
+                <button type="button" class="btn-close" @click="showLogSessionModal = false" aria-label="Schließen"></button>
+            </div>
+            <div class="modal-body d-flex flex-column gap-3">
+                <p class="text-muted small mb-0">Herzlichen Glückwunsch! Logge nun dein Befinden und deine Notizen für deine Progression-Historie.</p>
+
+                <div x-data="{ hoverRating: 0 }">
+                    <label class="form-label fw-semibold d-block">Wie anstrengend / gut war das Training?</label>
+                    <div class="d-flex gap-1 fs-4">
+                        <template x-for="star in [1, 2, 3, 4, 5]" :key="star">
+                            <button type="button" class="btn btn-sm p-0 border-0 text-warning"
+                                    @click="rating = star"
+                                    @mouseenter="hoverRating = star"
+                                    @mouseleave="hoverRating = 0">
+                                <i class="bi fs-4" :class="(hoverRating > 0 ? star <= hoverRating : star <= rating) ? 'bi-star-fill text-warning' : 'bi-star text-muted'"></i>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="form-label fw-semibold">Notizen</label>
+                    <textarea x-model="notes" rows="3" class="form-control" placeholder="z.B. Stark gefühlt, heute 80kg Bankdrücken geknackt!..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" @click="showLogSessionModal = false" class="btn btn-outline-secondary">Zurück</button>
+                <button type="button" @click="finishWorkout()" class="btn btn-primary">Speichern &amp; Beenden</button>
+            </div>
+        </div>
+    </div>
+</div>
+</template>
+
+<!-- Render form insertion point outside the glass card to escape any stacking contexts -->
+<div id="form-insertion-point"></div>
+
+
+
+<!-- Print Preview Modal for Screen Mode -->
+<template x-if="showPrintModal">
+<div id="print-modal-overlay"
+     class="modal d-block show bg-dark bg-opacity-75 p-3 no-print"
+     @click.self="showPrintModal = false">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content rounded-4 shadow">
+            <div class="modal-header gap-3">
+                <h5 class="modal-title fw-bold me-auto">
+                    <i class="bi bi-file-earmark-pdf me-1"></i>PDF / Druck-Vorschau
+                </h5>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-printer me-1"></i>Drucken
+                    </button>
+                    <button type="button" class="btn-close" @click="showPrintModal = false" aria-label="Schließen"></button>
+                </div>
+            </div>
+
+            <div class="modal-body" id="print-area">
+                <h2 class="h4 fw-bold mb-3">{{ bucket.title }}</h2>
+
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th width="35">#</th>
+                        {% if bucket.category.template.logic_type == 'workout' %}
+                            <th>Übung / Bezeichnung</th>
+                            <th>Typ</th>
+                            <th>Konfiguration / Ziele</th>
+                        {% else %}
+                            <th>Eintrag</th>
+                            {% if bucket.category.template.use_amount %}
+                                <th width="80">Menge</th>
+                            {% endif %}
+                            {% if bucket.category.template.use_price %}
+                                <th width="80">Preis</th>
+                            {% endif %}
+                            {% if bucket.category.template.use_rating %}
+                                <th width="100">Bewertung</th>
+                            {% endif %}
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in bucket.items.all %}
+                    <tr>
+                        <td>
+                            {% if item.is_completed %}
+                                <span class="print-checkbox checked">✓</span>
+                            {% else %}
+                                <span class="print-checkbox"></span>
+                            {% endif %}
+                        </td>
+                        {% if bucket.category.template.logic_type == 'workout' %}
+                            <td>
+                                <strong>{{ item.title }}</strong>
+                                {% if item.notes %}<br/><small>{{ item.notes }}</small>{% endif %}
+                            </td>
+                            <td>{{ item.get_workout_type_display }}</td>
+                            <td>
+                                {% if item.workout_type == 'strength' %}
+                                    Sets: {{ item.workout_config_json.sets_count|default:3 }} | Ziel: {{ item.workout_config_json.target_reps }} Wdh. bei {{ item.workout_config_json.target_weight }} kg
+                                {% elif item.workout_type == 'endurance' %}
+                                    Distanz: {{ item.workout_config_json.target_distance|default:"-" }} km | Pace: {{ item.workout_config_json.target_pace|default:"-" }} Min/km
+                                {% elif item.workout_type == 'interval' %}
+                                    Format: {{ item.workout_config_json.interval_format|default:"AMRAP" }} | Dauer: {{ item.workout_config_json.interval_duration }} Min.
+                                {% endif %}
+                            </td>
+                        {% else %}
+                            <td>
+                                <strong>{{ item.title }}</strong>
+                                {% if item.notes %}<br/><small>{{ item.notes }}</small>{% endif %}
+                            </td>
+                            {% if bucket.category.template.use_amount %}
+                                <td>{{ item.amount|default:"-" }}</td>
+                            {% endif %}
+                            {% if bucket.category.template.use_price %}
+                                <td>{% if item.price %}{{ item.price }} €{% else %}-{% endif %}</td>
+                            {% endif %}
+                            {% if bucket.category.template.use_rating %}
+                                <td>
+                                    {% if item.rating %}
+                                        {% for i in "12345" %}
+                                            {% if forloop.counter <= item.rating %}★{% else %}☆{% endif %}
+                                        {% endfor %}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                            {% endif %}
+                        {% endif %}
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5">Keine Einträge vorhanden.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                </table>
+            </div>
+            
+            <!-- Centered Footer with Template Type and Creation Date -->
+            <div class="text-center text-muted small mt-3">
+                Vorlage: {{ bucket.category.name }} &bull; Erstellt am {{ bucket.created_at|date:"d.m.Y" }}
+            </div>
+            </div>
+
+            <div class="modal-footer no-print">
+                <a href="javascript:void(0);" id="download-pdf-btn" onclick="downloadPDFBlob('{% url 'core:export_pdf' bucket.id %}', '{{ bucket.title|escapejs }}.pdf')" class="btn btn-primary">
+                    <i class="bi bi-download me-1"></i>PDF Herunterladen (Interaktiv)
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+</template>
+
+<!-- Help Modal -->
+<template x-if="showHelpModal">
+    <div class="modal d-block show bg-dark bg-opacity-75 p-3" @click.self="showHelpModal = false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">
+                        <span class="me-1">{{ bucket.category.icon }}</span>Anleitung: {{ bucket.category.name }}
+                    </h5>
+                    <button type="button" class="btn-close" @click="showHelpModal = false" aria-label="Schließen"></button>
+                </div>
+                <div class="modal-body small d-flex flex-column gap-3">
+                    <p class="text-muted mb-0">
+                        {{ bucket.category.template.help_purpose|default:"Ausführliche Trainings-Anleitung & Beispiele" }}
+                    </p>
+                    {% if bucket.category.template.help_fields %}
+                    <div class="text-break">{{ bucket.category.template.help_fields }}</div>
+                    {% else %}
+                    <div>
+                        <div class="fw-bold mb-1">1. So erstellst du Einträge</div>
+                        <p class="mb-0">Klicke oben rechts auf den Hinzufügen-Button, um neue Einträge auf deine Liste zu setzen.</p>
+                    </div>
+                    {% endif %}
+                    {% if bucket.category.template.help_example %}
+                    <div class="alert alert-secondary mb-0">
+                        <strong>Praxis-Beispiel:</strong><br>
+                        <span class="fst-italic">{{ bucket.category.template.help_example }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" @click="showHelpModal = false">Verstanden</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+</div>
+
+{% if can_edit %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        function initSortable() {
+            const sortableContainers = [];
+            const exerciseEl = document.getElementById('exercise-sortable-list');
+            if (exerciseEl) sortableContainers.push(exerciseEl);
+            
+            document.querySelectorAll('.sortable-item-list').forEach(el => {
+                sortableContainers.push(el);
+            });
+
+            sortableContainers.forEach(el => {
+                // Prevent duplicate initialization
+                if (el.dataset.sortableInitialized) return;
+                el.dataset.sortableInitialized = 'true';
+
+                if (typeof Sortable !== 'undefined') {
+                    new Sortable(el, {
+                        handle: '.drag-handle',
+                        animation: 150,
+                        ghostClass: 'sortable-ghost',
+                        chosenClass: 'sortable-chosen',
+                        onEnd: function(evt) {
+                            const order = Array.from(el.children)
+                                .map(child => child.getAttribute('data-id'))
+                                .filter(id => id !== null);
+                            
+                            if (order.length === 0) return;
+                            
+                            const csrfTokenInput = document.querySelector('[name=csrfmiddlewaretoken]');
+                            if (!csrfTokenInput) {
+                                console.error("CSRF-Token nicht gefunden.");
+                                return;
+                            }
+                            
+                            fetch("{% url 'core:reorder_items' bucket.id %}", {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    "X-CSRFToken": csrfTokenInput.value
+                                },
+                                body: JSON.stringify({ order: order })
+                            })
+                            .then(res => {
+                                if (!res.ok) throw new Error("HTTP error " + res.status);
+                                return res.json();
+                            })
+                            .then(data => {
+                                if (data.status !== 'ok') {
+                                    console.error("Fehler beim Speichern der Reihenfolge:", data.message);
+                                }
+                            })
+                            .catch(err => {
+                                console.error("Netzwerkfehler beim Speichern der Reihenfolge:", err);
+                            });
+                        }
+                    });
+                }
+            });
+        }
+
+        // Initialize on page load
+        initSortable();
+
+        // Re-initialize after HTMX dynamic swaps
+        document.body.addEventListener('htmx:afterSwap', function(evt) {
+            initSortable();
+        });
+    });
+</script>
+{% endif %}
+
+<script>
+    window.downloadPDFBlob = function(url, filename) {
+        const btn = document.getElementById('download-pdf-btn');
+        if (!btn) {
+            console.error('Download button not found');
+            return;
+        }
+        const originalText = btn.innerHTML;
+        
+        btn.innerHTML = '⏳ PDF wird generiert...';
+        btn.style.pointerEvents = 'none';
+        btn.style.opacity = '0.7';
+
+        fetch(url)
+            .then(response => {
+                if (!response.ok) throw new Error('Netzwerk-Fehler beim PDF-Download');
+                return response.blob();
+            })
+            .then(blob => {
+                const file = new File([blob], filename, { type: 'application/pdf' });
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+                if (isMobile && navigator.canShare && navigator.canShare({ files: [file] })) {
+                    navigator.share({
+                        files: [file],
+                        title: filename
+                    })
+                    .catch(error => {
+                        console.log('Teilen abgebrochen oder fehlgeschlagen:', error);
+                    });
+                } else {
+                    const blobUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+                }
+            })
+            .catch(error => {
+                console.error(error);
+                alert('Fehler beim Generieren des PDFs. Bitte versuche es erneut.');
+            })
+            .finally(() => {
+                btn.innerHTML = originalText;
+                btn.style.pointerEvents = 'auto';
+                btn.style.opacity = '1';
+            });
+    };
+</script>
+
+{% endblock %}

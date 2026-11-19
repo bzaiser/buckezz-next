@@ -1,0 +1,277 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-2" x-data="{
+    showCreateModal: {% if request.GET.create %}true{% else %}false{% endif %},
+    showTemplateHelp: false,
+    showHelpModal: false,
+    helpTemplateSlug: '',
+    searchQuery: '',
+    sortBy: 'last_used',
+    lists: [
+        {% for list in lists %}
+            {
+                id: '{{ list.id }}',
+                title: '{{ list.title|escapejs }}',
+                category: '{{ list.category.name|escapejs }}',
+                categoryIcon: '{{ list.category.icon|escapejs }}',
+                itemsCount: {{ list.items.count }},
+                updatedAt: {{ list.updated_at|date:'U' }},
+                url: '{% url 'core:list_detail' list.id %}'
+            }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ],
+    get filteredLists() {
+        let result = this.lists.filter(list => {
+            return this.searchQuery === '' ||
+                   list.title.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
+                   list.category.toLowerCase().includes(this.searchQuery.toLowerCase());
+        });
+
+        if (this.sortBy === 'last_used') {
+            result.sort((a, b) => b.updatedAt - a.updatedAt);
+        } else if (this.sortBy === 'alphabetical') {
+            result.sort((a, b) => a.title.localeCompare(b.title));
+        }
+        return result;
+    },
+    helpTemplates: {
+        {% for cat in categories %}
+            '{{ cat.slug }}': {
+                'name': '{{ cat.name|escapejs }}',
+                'icon': '{{ cat.icon|escapejs }}',
+                'purpose': '{{ cat.template.help_purpose|escapejs }}',
+                'fields': '{{ cat.template.help_fields|escapejs }}',
+                'example': '{{ cat.template.help_example|escapejs }}'
+            }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    }
+}">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="{% url 'core:home' %}{% if user.is_authenticated %}?start=1{% endif %}">Start</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Dashboard</li>
+            </ol>
+        </nav>
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" onclick="window.history.back()" class="btn btn-outline-secondary btn-sm" title="Zurück">
+                <i class="bi bi-arrow-left"></i>
+            </button>
+            <button type="button" onclick="window.location.reload()" class="btn btn-outline-secondary btn-sm" title="Aktualisieren">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <button type="button" @click="showHelpModal = true" class="btn btn-outline-primary btn-sm" title="Dashboard-Hilfe anzeigen">
+                <i class="bi bi-question-circle"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+        <div>
+            <h1 class="h2 fw-bold mb-1">Meine Buckets</h1>
+            <p class="text-muted small mb-0">Verwalte deine Listen, Pläne und Aktivitäten</p>
+        </div>
+        <button type="button" class="btn btn-primary" @click="showCreateModal = true">
+            <i class="bi bi-plus-circle me-1"></i>Neuer Bucket
+        </button>
+    </div>
+
+    <!-- KPI Bento Grid -->
+    <div class="kpi-bento-grid mb-4">
+        {% include "design_studio/components/kpi_card.html" with title="Aktive Buckets" value=lists|length icon="bi-bucket" size="sm" state=1 %}
+        {% include "design_studio/components/kpi_card.html" with title="Vorlagen" value=categories|length icon="bi-grid" size="sm" state=2 %}
+    </div>
+
+    {% if lists %}
+    <div class="card shadow-sm rounded-4 mb-4">
+        <div class="card-body py-3">
+            <div class="row g-2 align-items-center">
+                <div class="col-12 col-md-8">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" x-model="searchQuery" class="form-control" placeholder="Buckets nach Name oder Vorlage durchsuchen...">
+                        <button x-show="searchQuery !== ''" @click="searchQuery = ''" class="btn btn-outline-secondary" type="button">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-arrow-down-up"></i></span>
+                        <select x-model="sortBy" class="form-select">
+                            <option value="last_used">Zuletzt benutzt</option>
+                            <option value="alphabetical">Alphabetisch</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not lists %}
+        <div class="card shadow-sm rounded-4 text-center p-5">
+            <p class="text-muted mb-3">Du hast noch keine Buckets erstellt.</p>
+            <div>
+                <button type="button" class="btn btn-primary" @click="showCreateModal = true">
+                    <i class="bi bi-plus-circle me-1"></i>Ersten Bucket anlegen
+                </button>
+            </div>
+        </div>
+    {% else %}
+        <div class="row g-3">
+            <template x-for="list in filteredLists" :key="list.id">
+                <div class="col-12 col-sm-6 col-lg-4">
+                    <a :href="list.url" class="card h-100 shadow-sm rounded-4 text-decoration-none">
+                        <div class="card-body d-flex flex-column justify-content-between">
+                            <div>
+                                <h3 class="h5 fw-bold mb-1" x-text="list.title"></h3>
+                                <p class="text-muted small mb-3">
+                                    <template x-if="list.categoryIcon.startsWith('bi-')"><i class="bi text-primary me-1" :class="list.categoryIcon"></i></template>
+                                    <template x-if="!list.categoryIcon.startsWith('bi-')"><span x-text="list.categoryIcon"></span></template>
+                                    <span x-text="list.category"></span>
+                                </p>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="badge bg-primary-subtle text-primary-emphasis rounded-pill" x-text="list.itemsCount + (list.itemsCount === 1 ? ' Eintrag' : ' Einträge')"></span>
+                                <i class="bi bi-chevron-right text-muted"></i>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            </template>
+        </div>
+
+        <div x-show="filteredLists.length === 0" class="card shadow-sm rounded-4 text-center p-4 mt-3">
+            <p class="text-muted mb-0">Keine Buckets gefunden, die zu deiner Suche passen.</p>
+        </div>
+    {% endif %}
+
+    <!-- Create Bucket Modal -->
+    <template x-if="showCreateModal">
+        <div class="modal d-block show bg-dark bg-opacity-75 p-2 p-sm-3" tabindex="-1" @click.self="showCreateModal = false">
+            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg mw-100 mx-auto">
+                <form class="modal-content rounded-4" action="{% url 'core:list_create' %}" method="POST">
+                    {% csrf_token %}
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold">Neuen Bucket erstellen</h5>
+                        <button type="button" class="btn-close" @click="showCreateModal = false" aria-label="Schließen"></button>
+                    </div>
+                        <div class="modal-body d-flex flex-column gap-3">
+                            <div>
+                                <label class="form-label fw-semibold">Name des Buckets</label>
+                                <input type="text" name="title" placeholder="z.B. Wocheneinkauf" required class="form-control">
+                            </div>
+                            <div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <label class="form-label fw-semibold mb-0">Vorlage auswählen</label>
+                                    <small class="text-muted">Klicke auf <i class="bi bi-question-circle"></i> für Beispiele</small>
+                                </div>
+                                <div class="row g-2">
+                                    {% for cat in categories %}
+                                    <div class="col-6 col-sm-4">
+                                        <div class="position-relative h-100">
+                                            <input type="radio" class="btn-check" name="category_id" id="cat_{{ cat.id }}" value="{{ cat.id }}" required>
+                                            <label class="btn btn-outline-primary w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3 rounded-3" for="cat_{{ cat.id }}">
+                                                <span class="fs-3 mb-1">
+                                                    {% if cat.icon|slice:":3" == "bi-" %}<i class="bi {{ cat.icon }} text-primary"></i>{% else %}{{ cat.icon }}{% endif %}
+                                                </span>
+                                                <span class="small fw-semibold">{{ cat.name }}</span>
+                                            </label>
+                                            <button type="button"
+                                                    @click.stop.prevent="helpTemplateSlug = '{{ cat.slug }}'; showTemplateHelp = true"
+                                                    class="btn btn-sm btn-link position-absolute top-0 end-0 p-1"
+                                                    title="Vorlage-Anleitung anzeigen">
+                                                <i class="bi bi-question-circle"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" @click="showCreateModal = false">Abbrechen</button>
+                            <button type="submit" class="btn btn-primary">Erstellen</button>
+                        </div>
+                </form>
+            </div>
+        </div>
+    </template>
+
+    <!-- Help / Template Instructions Modal -->
+    <template x-if="showTemplateHelp">
+        <div class="modal d-block show bg-dark bg-opacity-75" tabindex="-1" @click.self="showTemplateHelp = false">
+            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content rounded-4">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold">
+                            <span x-text="helpTemplates[helpTemplateSlug]?.icon"></span>
+                            Vorlage: <span x-text="helpTemplates[helpTemplateSlug]?.name"></span>
+                        </h5>
+                        <button type="button" class="btn-close" @click="showTemplateHelp = false" aria-label="Schließen"></button>
+                    </div>
+                    <div class="modal-body d-flex flex-column gap-3 small">
+                        <template x-if="helpTemplates[helpTemplateSlug]">
+                            <div class="d-flex flex-column gap-3">
+                                <p class="mb-0">
+                                    <strong>Zweck:</strong>
+                                    <span x-text="helpTemplates[helpTemplateSlug].purpose || 'Einträge übersichtlich erfassen und verwalten.'"></span>
+                                </p>
+                                <template x-if="helpTemplates[helpTemplateSlug].fields">
+                                    <div>
+                                        <strong>Erstellung & Felder:</strong>
+                                        <div class="mt-1 text-break" x-text="helpTemplates[helpTemplateSlug].fields"></div>
+                                    </div>
+                                </template>
+                                <template x-if="helpTemplates[helpTemplateSlug].example">
+                                    <div class="alert alert-secondary mb-0">
+                                        <strong>Praxis-Beispiel:</strong><br>
+                                        <span class="fst-italic text-break" x-text="helpTemplates[helpTemplateSlug].example"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" @click="showTemplateHelp = false">Verstanden</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Dashboard Help Modal -->
+    <template x-if="showHelpModal">
+        <div class="modal d-block show bg-dark bg-opacity-75" tabindex="-1" @click.self="showHelpModal = false">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content rounded-4">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold"><i class="bi bi-folder2-open me-1"></i>Dein Cockpit Dashboard</h5>
+                        <button type="button" class="btn-close" @click="showHelpModal = false" aria-label="Schließen"></button>
+                    </div>
+                    <div class="modal-body d-flex flex-column gap-3 small">
+                        <p class="mb-0">Hier verwaltest du all deine aktiven <strong>Buckets</strong> an einem zentralen Ort.</p>
+                        <div>
+                            <div class="fw-bold text-primary mb-1">Neuen Bucket anlegen:</div>
+                            <p class="mb-0">Nutze den <strong>„+ Neuer Bucket“</strong> Button, um eine neue Liste zu starten.</p>
+                        </div>
+                        <div>
+                            <div class="fw-bold text-primary mb-1">Funktionen der Vorlagen:</div>
+                            <ul class="mb-0 ps-3">
+                                <li><strong>Trainingspläne:</strong> Tracke Workouts, Runden, Gewichte und Statistiken.</li>
+                                <li><strong>Veranstaltungsplaner:</strong> Plane Partys, lade Gäste ein und teile Aufgaben.</li>
+                                <li><strong>Wunsch- & Geschenkeliste:</strong> Perfekt zum Wichteln (Secret Santa).</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" @click="showHelpModal = false">Verstanden</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+</div>
+{% endblock %}

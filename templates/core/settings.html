@@ -1,0 +1,356 @@
+{% extends 'base.html' %}
+{% load l10n %}
+
+{% block content %}
+<div class="container py-2"
+     x-data="{
+        primary: '{{ settings.primary_color|default:"#00d2ff" }}',
+        accent: '{{ settings.accent_color|default:"#ffab00" }}',
+        bg: '{{ settings.bg_color|default:"#0a0e14" }}',
+        text: '{{ settings.text_color|default:"#ffffff" }}',
+        input_bg: '{{ settings.input_bg_color|default:"#000000" }}',
+        input_text: '{{ settings.input_text_color|default:"#ffffff" }}',
+        header_bg: '{{ settings.header_bg_color|default:"#543D62" }}',
+        header_text: '{{ settings.header_text_color|default:"#ffffff" }}',
+        opacity: {{ settings.glass_opacity|default:0.15|unlocalize }},
+        showHelpModal: false
+     }">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Dashboard</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Einstellungen</li>
+            </ol>
+        </nav>
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" onclick="window.history.back()" class="btn btn-outline-secondary btn-sm" title="Zurück">
+                <i class="bi bi-arrow-left"></i>
+            </button>
+            <button type="button" onclick="window.location.reload()" class="btn btn-outline-secondary btn-sm" title="Aktualisieren">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <button type="button" @click="showHelpModal = true" class="btn btn-outline-primary btn-sm" title="Einstellungen-Hilfe anzeigen">
+                <i class="bi bi-question-circle"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-4">
+        <div>
+            <h1 class="h2 fw-bold mb-1"><i class="bi bi-sliders me-2"></i>Profil & Einstellungen</h1>
+            <p class="text-muted small mb-0">Konfiguriere Profil, Sportdaten, Kalender-Sync und Design-Einstellungen.</p>
+        </div>
+        <a href="{% url 'design_studio:studio' %}" class="btn btn-outline-primary">
+            <i class="bi bi-palette me-1"></i>Design Studio öffnen
+        </a>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-12 col-lg-8">
+            <form action="{% url 'core:settings' %}" method="POST" class="card shadow-sm rounded-4">
+                {% csrf_token %}
+                <div class="card-body p-4 d-flex flex-column gap-4">
+
+                    <!-- Profil & Region -->
+                    <div>
+                        <h3 class="h6 fw-bold text-primary border-bottom pb-2 mb-3">
+                            <i class="bi bi-person me-1"></i>Profil-Daten & Region
+                        </h3>
+                        <p class="text-muted small mb-3">Diese Daten werden für Zeitzonen-Erinnerungen und altersbasierte Meilensteine genutzt.</p>
+
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-semibold">Dein Geburtsdatum</label>
+                                <input type="date" name="birth_date" class="form-control" value="{{ person.birth_date|date:'Y-m-d' }}">
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-semibold">Heimat-Zeitzone</label>
+                                <div class="input-group">
+                                    <select name="timezone" id="tz-select" class="form-select">
+                                        <option value="Europe/Athens" {% if settings.timezone == 'Europe/Athens' %}selected{% endif %}>Griechenland (Europe/Athens)</option>
+                                        <option value="Europe/Berlin" {% if settings.timezone == 'Europe/Berlin' %}selected{% endif %}>Deutschland / Berlin (Europe/Berlin)</option>
+                                        <option value="Europe/London" {% if settings.timezone == 'Europe/London' %}selected{% endif %}>Großbritannien / London (Europe/London)</option>
+                                        <option value="Europe/Zurich" {% if settings.timezone == 'Europe/Zurich' %}selected{% endif %}>Schweiz / Zürich (Europe/Zurich)</option>
+                                        <option value="Europe/Vienna" {% if settings.timezone == 'Europe/Vienna' %}selected{% endif %}>Österreich / Wien (Europe/Vienna)</option>
+                                        <option value="UTC" {% if settings.timezone == 'UTC' %}selected{% endif %}>Koordinierte Weltzeit (UTC)</option>
+                                    </select>
+                                    <button type="button" onclick="detectBrowserTimezone()" class="btn btn-outline-secondary" title="Lokale Zeitzone automatisch ermitteln">
+                                        <i class="bi bi-geo-alt"></i>
+                                    </button>
+                                </div>
+                                <div id="tz-detect-msg" class="text-success small fw-semibold mt-1 d-none">
+                                    Zeitzone erkannt und ausgewählt!
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Alexa User ID (für Haushalts-Steuerung)</label>
+                                <input type="text" name="alexa_user_id" class="form-control" value="{{ settings.alexa_user_id|default:'' }}" placeholder="z.B. amzn1.ask.account.AM3B...">
+                                <div class="form-text">
+                                    Deine Alexa User-ID findest du im <a href="/api/alexa-log/" target="_blank">Alexa-Log</a>, nachdem du den Skill aufgerufen hast.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gym & Sport -->
+                    <div>
+                        <h3 class="h6 fw-bold text-primary border-bottom pb-2 mb-3">
+                            <i class="bi bi-activity me-1"></i>Gym & Sport-Einstellungen
+                        </h3>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-semibold">Aktuelles Körpergewicht (kg)</label>
+                                <input type="number" step="0.1" name="gym_weight" class="form-control" value="{% if settings.gym_weight %}{{ settings.gym_weight|unlocalize }}{% endif %}">
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-semibold">Fitness-Ziel</label>
+                                <input type="text" name="gym_fitness_goal" class="form-control" value="{{ settings.gym_fitness_goal|default:'' }}" placeholder="z.B. Muskelaufbau, Marathon">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Link zum Ernährungsplan (URL)</label>
+                                <input type="url" name="gym_nutrition_plan_url" placeholder="https://..." class="form-control" value="{{ settings.gym_nutrition_plan_url|default:'' }}">
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label fw-semibold">Plan-Anpassung</label>
+                                <select name="gym_plan_adaptation_weeks" class="form-select">
+                                    <option value="2" {% if settings.gym_plan_adaptation_weeks == 2 %}selected{% endif %}>2 Wochen</option>
+                                    <option value="4" {% if settings.gym_plan_adaptation_weeks == 4 %}selected{% endif %}>4 Wochen</option>
+                                    <option value="6" {% if settings.gym_plan_adaptation_weeks == 6 %}selected{% endif %}>6 Wochen</option>
+                                    <option value="8" {% if settings.gym_plan_adaptation_weeks == 8 %}selected{% endif %}>8 Wochen</option>
+                                    <option value="12" {% if settings.gym_plan_adaptation_weeks == 12 %}selected{% endif %}>12 Wochen</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-8">
+                                <label class="form-label fw-semibold">Erinnerungs-Meldung</label>
+                                <input type="text" name="gym_plan_adaptation_message" class="form-control" value="{{ settings.gym_plan_adaptation_message|default:'Bitte melde dich beim Trainer für einen neuen Plan, damit die Fortschritte möglich sind.' }}">
+                            </div>
+                        </div>
+
+                        <div class="mt-3">
+                            <label class="form-label fw-semibold small text-muted">Körpermaße (cm)</label>
+                            <div class="row g-2">
+                                <div class="col-6 col-sm-3">
+                                    <input type="text" name="measure_brust" placeholder="Brust" class="form-control form-control-sm" value="{{ settings.gym_body_measurements_json.brust|default:'' }}">
+                                </div>
+                                <div class="col-6 col-sm-3">
+                                    <input type="text" name="measure_ruecken" placeholder="Rücken" class="form-control form-control-sm" value="{{ settings.gym_body_measurements_json.ruecken|default:'' }}">
+                                </div>
+                                <div class="col-6 col-sm-3">
+                                    <input type="text" name="measure_arm_l" placeholder="Arm L" class="form-control form-control-sm" value="{{ settings.gym_body_measurements_json.arm_l|default:'' }}">
+                                </div>
+                                <div class="col-6 col-sm-3">
+                                    <input type="text" name="measure_arm_r" placeholder="Arm R" class="form-control form-control-sm" value="{{ settings.gym_body_measurements_json.arm_r|default:'' }}">
+                                </div>
+                                <div class="col-6 col-sm-4">
+                                    <input type="text" name="measure_bauch" placeholder="Bauch" class="form-control form-control-sm" value="{{ settings.gym_body_measurements_json.bauch|default:'' }}">
+                                </div>
+                                <div class="col-6 col-sm-4">
+                                    <input type="text" name="measure_bein_l" placeholder="Bein L" class="form-control form-control-sm" value="{{ settings.gym_body_measurements_json.bein_l|default:'' }}">
+                                </div>
+                                <div class="col-6 col-sm-4">
+                                    <input type="text" name="measure_bein_r" placeholder="Bein R" class="form-control form-control-sm" value="{{ settings.gym_body_measurements_json.bein_r|default:'' }}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Kalender-Einstellungen -->
+                    <div>
+                        <h3 class="h6 fw-bold text-primary border-bottom pb-2 mb-3">
+                            <i class="bi bi-calendar3 me-1"></i>Kalender-Einstellungen
+                        </h3>
+                        <div class="row g-3 mb-3">
+                            <div class="col-12 col-sm-4">
+                                <label class="form-label fw-semibold">Tagesansicht Start</label>
+                                <select name="calendar_start_hour" class="form-select">
+                                    {% for h in "0123456789"|make_list %}{% endfor %}
+                                    <option value="0" {% if settings.calendar_start_hour == 0 %}selected{% endif %}>00:00 Uhr</option>
+                                    <option value="6" {% if settings.calendar_start_hour == 6 %}selected{% endif %}>06:00 Uhr</option>
+                                    <option value="7" {% if settings.calendar_start_hour == 7 %}selected{% endif %}>07:00 Uhr</option>
+                                    <option value="8" {% if settings.calendar_start_hour == 8 %}selected{% endif %}>08:00 Uhr</option>
+                                    <option value="9" {% if settings.calendar_start_hour == 9 %}selected{% endif %}>09:00 Uhr</option>
+                                    <option value="10" {% if settings.calendar_start_hour == 10 %}selected{% endif %}>10:00 Uhr</option>
+                                    <option value="12" {% if settings.calendar_start_hour == 12 %}selected{% endif %}>12:00 Uhr</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-sm-4">
+                                <label class="form-label fw-semibold">Tagesansicht Ende</label>
+                                <select name="calendar_end_hour" class="form-select">
+                                    <option value="18" {% if settings.calendar_end_hour == 18 %}selected{% endif %}>18:00 Uhr</option>
+                                    <option value="20" {% if settings.calendar_end_hour == 20 %}selected{% endif %}>20:00 Uhr</option>
+                                    <option value="21" {% if settings.calendar_end_hour == 21 %}selected{% endif %}>21:00 Uhr</option>
+                                    <option value="22" {% if settings.calendar_end_hour == 22 %}selected{% endif %}>22:00 Uhr</option>
+                                    <option value="23" {% if settings.calendar_end_hour == 23 %}selected{% endif %}>23:00 Uhr</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-sm-4">
+                                <label class="form-label fw-semibold">Sync-Intervall (iCal)</label>
+                                <select name="calendar_refresh_interval" class="form-select">
+                                    <option value="PT1M" {% if settings.calendar_refresh_interval == 'PT1M' %}selected{% endif %}>1 Minute</option>
+                                    <option value="PT5M" {% if settings.calendar_refresh_interval == 'PT5M' %}selected{% endif %}>5 Minuten</option>
+                                    <option value="PT15M" {% if settings.calendar_refresh_interval == 'PT15M' %}selected{% endif %}>15 Minuten (Standard)</option>
+                                    <option value="PT30M" {% if settings.calendar_refresh_interval == 'PT30M' %}selected{% endif %}>30 Minuten</option>
+                                    <option value="PT1H" {% if settings.calendar_refresh_interval == 'PT1H' %}selected{% endif %}>1 Stunde</option>
+                                    <option value="PT2H" {% if settings.calendar_refresh_interval == 'PT2H' %}selected{% endif %}>2 Stunden</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="d-flex flex-column gap-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="calendar_filter_tracker" id="cfg_tracker" {% if settings.calendar_filter_tracker %}checked{% endif %}>
+                                <label class="form-check-label" for="cfg_tracker">Routinen (Tracker) standardmäßig anzeigen</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="calendar_filter_reminder" id="cfg_reminder" {% if settings.calendar_filter_reminder %}checked{% endif %}>
+                                <label class="form-check-label" for="cfg_reminder">Erinnerungen standardmäßig anzeigen</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="calendar_filter_completed" id="cfg_completed" {% if settings.calendar_filter_completed %}checked{% endif %}>
+                                <label class="form-check-label" for="cfg_completed">Erledigte Aufgaben standardmäßig anzeigen</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Legacy Color Fields (preserved for compatibility) -->
+                    <div>
+                        <h3 class="h6 fw-bold text-primary border-bottom pb-2 mb-3">
+                            <i class="bi bi-palette me-1"></i>Erweiterte Farbwerte (Legacy / Admin)
+                        </h3>
+                        <div class="row g-2">
+                            <div class="col-6 col-sm-3">
+                                <label class="form-label small">Primärfarbe</label>
+                                <input type="color" name="primary_color" x-model="primary" class="form-control form-control-color w-100">
+                            </div>
+                            <div class="col-6 col-sm-3">
+                                <label class="form-label small">Akzentfarbe</label>
+                                <input type="color" name="accent_color" x-model="accent" class="form-control form-control-color w-100">
+                            </div>
+                            <div class="col-6 col-sm-3">
+                                <label class="form-label small">Hintergrund</label>
+                                <input type="color" name="bg_color" x-model="bg" class="form-control form-control-color w-100">
+                            </div>
+                            <div class="col-6 col-sm-3">
+                                <label class="form-label small">Textfarbe</label>
+                                <input type="color" name="text_color" x-model="text" class="form-control form-control-color w-100">
+                            </div>
+                        </div>
+                        <input type="hidden" name="input_bg_color" x-model="input_bg">
+                        <input type="hidden" name="input_text_color" x-model="input_text">
+                        <input type="hidden" name="header_bg_color" x-model="header_bg">
+                        <input type="hidden" name="header_text_color" x-model="header_text">
+                        <input type="hidden" name="glass_opacity" x-model="opacity">
+                    </div>
+
+                    <!-- PWA Cache -->
+                    <div>
+                        <h3 class="h6 fw-bold text-primary border-bottom pb-2 mb-3">
+                            <i class="bi bi-phone me-1"></i>App-Cache & PWA
+                        </h3>
+                        <p class="text-muted small mb-2">Falls Änderungen nicht direkt angezeigt werden, kannst du hier den Offline-Cache leeren.</p>
+                        <button type="button" id="pwa-refresh-btn" onclick="refreshPWA()" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-arrow-clockwise me-1"></i>App-Cache leeren & aktualisieren
+                        </button>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2 pt-2 border-top">
+                        <button type="submit" class="btn btn-primary">Einstellungen speichern</button>
+                        <a href="{% url 'core:dashboard' %}" class="btn btn-outline-secondary">Abbrechen</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="col-12 col-lg-4">
+            <div class="card shadow-sm rounded-4">
+                <div class="card-body p-4">
+                    <h3 class="h6 fw-bold mb-3"><i class="bi bi-palette me-1"></i>Design Studio</h3>
+                    <p class="text-muted small mb-3">
+                        Nutze das integrierte Design Studio für 16 Stimmungen, Karten-Stile, Hintergrund-Muster und Navigations-Layout.
+                    </p>
+                    <a href="{% url 'design_studio:studio' %}" class="btn btn-primary w-100">
+                        <i class="bi bi-sliders me-1"></i>Zum Design Studio
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Help Modal -->
+    <template x-if="showHelpModal">
+        <div class="modal d-block show bg-dark bg-opacity-75" tabindex="-1" @click.self="showHelpModal = false">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content rounded-4">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold"><i class="bi bi-gear me-1"></i>Deine App-Einstellungen</h5>
+                        <button type="button" class="btn-close" @click="showHelpModal = false" aria-label="Schließen"></button>
+                    </div>
+                    <div class="modal-body small d-flex flex-column gap-2">
+                        <p class="mb-0">Passe Buckezz an deine Bedürfnisse an – von Zeitzonen und Sportzielen bis hin zum Kalender-Sync.</p>
+                        <p class="mb-0">Für das visuelle Design und Layout steht dir außerdem das <strong>Design Studio</strong> zur Verfügung.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" @click="showHelpModal = false">Verstanden</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script>
+    function detectBrowserTimezone() {
+        try {
+            const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            if (tz) {
+                const select = document.getElementById('tz-select');
+                let optionExists = false;
+                for (let i = 0; i < select.options.length; i++) {
+                    if (select.options[i].value === tz) {
+                        select.selectedIndex = i;
+                        optionExists = true;
+                        break;
+                    }
+                }
+                if (!optionExists) {
+                    const newOpt = document.createElement('option');
+                    newOpt.value = tz;
+                    newOpt.text = tz + " (Erkannt)";
+                    newOpt.selected = true;
+                    select.add(newOpt);
+                }
+                const msg = document.getElementById('tz-detect-msg');
+                msg.innerText = "Zeitzone '" + tz + "' erkannt und ausgewählt!";
+                msg.classList.remove('d-none');
+                setTimeout(() => { msg.classList.add('d-none'); }, 4000);
+            }
+        } catch (e) {
+            alert("Automatische Zeitzonen-Erkennung wird von diesem Browser nicht unterstützt.");
+        }
+    }
+
+    function refreshPWA() {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for (let registration of registrations) {
+                    registration.unregister();
+                }
+            });
+        }
+        if ('caches' in window) {
+            caches.keys().then(function(names) {
+                for (let name of names) {
+                    caches.delete(name);
+                }
+            });
+        }
+        const btn = document.getElementById('pwa-refresh-btn');
+        btn.innerHTML = 'Aktualisiere App...';
+        btn.disabled = true;
+        setTimeout(() => { window.location.reload(true); }, 1000);
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block title %}Instanz nicht gefunden - Buckezz 2.0{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-9 col-lg-6 text-center">
+        <div class="display-3 text-warning mb-3"><i class="bi bi-search"></i></div>
+        <h1 class="h2 fw-bold mb-2">Instanz nicht gefunden</h1>
+        <p class="text-muted mb-4">
+            Die gesuchte Familien-Instanz <strong class="text-warning">„{{ invalid_slug }}“</strong> existiert nicht oder ist zurzeit inaktiv.
+        </p>
+
+        <div class="card shadow-sm rounded-4 text-start mb-4">
+            <div class="card-body d-flex flex-column gap-3">
+                <h3 class="h6 fw-bold text-primary border-bottom pb-2 mb-0">
+                    <i class="bi bi-lightbulb me-1"></i>Was kannst du tun?
+                </h3>
+                <div class="small">
+                    <strong>1. Schreibweise überprüfen</strong>
+                    <p class="text-muted mb-0">Stelle sicher, dass der Name der Subdomain korrekt geschrieben ist.</p>
+                </div>
+                <div class="small">
+                    <strong>2. Eine neue Instanz registrieren</strong>
+                    <p class="text-muted mb-0">Falls du eine neue Familie für Buckezz anlegen möchtest, kannst du dies in wenigen Sekunden tun.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-grid gap-2">
+            <a href="{{ register_url }}" class="btn btn-primary btn-lg">
+                <i class="bi bi-rocket-takeoff me-1"></i>Neue Familie registrieren
+            </a>
+            <a href="{{ home_url }}" class="btn btn-link text-decoration-none">
+                Zurück zur Haupt-Startseite
+            </a>
+        </div>
+    </div>
+    </div>
+</div>
+{% endblock %}

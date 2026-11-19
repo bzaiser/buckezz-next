@@ -1,0 +1,786 @@
+{% load static %}
+<script src="{% static 'vendor/js/chart.min.js' %}"></script>
+
+{# Safe JSON Islands #}
+<script type="application/json" id="nutrition-goal-data">{{ nutrition_goal_json|default:"{}"|safe }}</script>
+<script type="application/json" id="weight-history-data">{{ weight_chart_data_json|default:"[]"|safe }}</script>
+<script type="application/json" id="nutrition-meals-data">{{ nutrition_meals_json|default:"[]"|safe }}</script>
+
+<div x-data="nutritionCockpit()" x-init="init()" class="nutrition-cockpit-container">
+    <div class="card shadow-sm rounded-4 mb-4">
+        <div class="card-header py-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-heart-pulse fs-4"></i>
+                <div>
+                    <h2 class="h5 fw-bold mb-0">Ernährungs- & Gewichtscockpit</h2>
+                    <div class="small opacity-75">Tageskalorien, Makros & Körpergewichts-Trend</div>
+                </div>
+            </div>
+
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <div class="input-group input-group-sm w-auto">
+                    <button type="button" @click="changeDate(-1)" class="btn btn-light" title="Vorheriger Tag">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <input type="date" x-model="selectedDate" @change="onDateChanged()" class="form-control">
+                    <button type="button" @click="changeDate(1)" class="btn btn-light" title="Nächster Tag">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                    <button type="button" @click="setDateToday()" class="btn btn-light" x-show="selectedDate !== todayIso">Heute</button>
+                </div>
+
+                <button type="button" @click.stop="showGoalModal = true" class="btn btn-sm btn-light">
+                    <i class="bi bi-bullseye me-1"></i>Ziele & Rechner
+                </button>
+            </div>
+        </div>
+
+        <div class="card-body p-3 p-md-4">
+            <div class="row g-3 mb-4">
+                <!-- Karte 1: Kalorien -->
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="card h-100 shadow-sm rounded-4">
+                        <div class="card-body d-flex flex-column justify-content-between gap-2">
+                            <div class="d-flex justify-content-between align-items-center small">
+                                <span class="fw-bold text-muted">Kalorien heute</span>
+                                <span class="badge" :class="calorieDiff >= 0 ? 'text-bg-success' : 'text-bg-danger'" x-text="(calorieDiff >= 0 ? calorieDiff + ' kcal übrig' : Math.abs(calorieDiff) + ' kcal über Ziel')"></span>
+                            </div>
+                            <div class="fs-4 fw-bold">
+                                <span x-text="dayTotalCalories"></span>
+                                <span class="fs-6 fw-normal text-muted" x-text="'/ ' + goal.target_calories + ' kcal'"></span>
+                            </div>
+                            <div class="progress" role="progressbar">
+                                <div class="progress-bar" :class="caloriePercent > 105 ? 'bg-danger' : 'bg-primary'" :style="'width: ' + Math.min(caloriePercent, 100) + '%;'"></div>
+                            </div>
+                            <div class="small text-muted" x-text="caloriePercent + '% des Tagesziels erreicht'"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Karte 2: Makros -->
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="card h-100 shadow-sm rounded-4">
+                        <div class="card-body d-flex flex-column gap-2">
+                            <div class="small fw-bold text-muted">Nährwerte (Makros)</div>
+                            <div>
+                                <div class="d-flex justify-content-between small">
+                                    <span>Protein</span>
+                                    <span><strong x-text="dayTotalProtein"></strong> / <span x-text="goal.target_protein_g"></span>g</span>
+                                </div>
+                                <div class="progress" role="progressbar">
+                                    <div class="progress-bar bg-primary" :style="'width: ' + Math.min(Math.round((dayTotalProtein / (goal.target_protein_g || 1)) * 100), 100) + '%;'"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="d-flex justify-content-between small">
+                                    <span>Kohlenhydrate</span>
+                                    <span><strong x-text="dayTotalCarbs"></strong> / <span x-text="goal.target_carbs_g"></span>g</span>
+                                </div>
+                                <div class="progress" role="progressbar">
+                                    <div class="progress-bar bg-warning" :style="'width: ' + Math.min(Math.round((dayTotalCarbs / (goal.target_carbs_g || 1)) * 100), 100) + '%;'"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="d-flex justify-content-between small">
+                                    <span>Fett</span>
+                                    <span><strong x-text="dayTotalFat"></strong> / <span x-text="goal.target_fat_g"></span>g</span>
+                                </div>
+                                <div class="progress" role="progressbar">
+                                    <div class="progress-bar bg-danger" :style="'width: ' + Math.min(Math.round((dayTotalFat / (goal.target_fat_g || 1)) * 100), 100) + '%;'"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Karte 3: Wasser -->
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="card h-100 shadow-sm rounded-4">
+                        <div class="card-body d-flex flex-column justify-content-between gap-2">
+                            <div class="d-flex justify-content-between align-items-center small">
+                                <span class="fw-bold text-muted"><i class="bi bi-droplet me-1"></i>Wasser heute</span>
+                                <span class="text-muted" x-text="dayTotalWater + ' / ' + (goal.target_water_ml || 2500) + ' ml'"></span>
+                            </div>
+                            <div class="fs-4 fw-bold">
+                                <span x-text="(dayTotalWater / 1000).toFixed(1) + ' L'"></span>
+                                <span class="fs-6 fw-normal text-muted" x-text="'(' + waterPercent + '%)'"></span>
+                            </div>
+                            <div class="progress" role="progressbar">
+                                <div class="progress-bar bg-info" :style="'width: ' + Math.min(waterPercent, 100) + '%;'"></div>
+                            </div>
+                            <div class="btn-group btn-group-sm w-100">
+                                <button type="button" @click="quickAddWater(250)" class="btn btn-outline-info">+250ml</button>
+                                <button type="button" @click="quickAddWater(500)" class="btn btn-outline-info">+500ml</button>
+                                <button type="button" @click="quickAddWater(750)" class="btn btn-outline-info">+750ml</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Karte 4: Gewicht -->
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="card h-100 shadow-sm rounded-4">
+                        <div class="card-body d-flex flex-column justify-content-between gap-2">
+                            <div class="d-flex justify-content-between align-items-center small">
+                                <span class="fw-bold text-muted">Aktuelles Gewicht</span>
+                                <button type="button" @click.stop="showWeightHistoryModal = true" class="btn btn-sm btn-outline-secondary py-0">Verlauf</button>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-baseline">
+                                <div>
+                                    <div class="fs-4 fw-bold" x-text="currentWeight ? currentWeight + ' kg' : 'Kein Eintrag'"></div>
+                                    <div class="small text-muted" x-show="goal.target_weight" x-text="'Ziel: ' + goal.target_weight + ' kg (Start: ' + (goal.start_weight || '-') + ' kg)'"></div>
+                                </div>
+                                <span class="badge" :class="weightDiffFromStart <= 0 ? 'text-bg-success' : 'text-bg-warning'" x-show="weightDiffFromStart !== null" x-text="(weightDiffFromStart > 0 ? '+' : '') + weightDiffFromStart + ' kg'"></span>
+                            </div>
+                            <form @submit.prevent="submitWeightQuick()" class="input-group input-group-sm">
+                                <input type="number" step="0.1" min="30" max="300" x-model="quickWeightVal" placeholder="z.B. 81.5" required class="form-control">
+                                <button type="submit" class="btn btn-outline-primary">Speichern</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Verlaufschart für Gewicht -->
+            <div class="card shadow-sm rounded-4 mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span class="fw-bold small"><i class="bi bi-graph-up me-1"></i>Gewichtsverlauf & Trend</span>
+                    <span class="small text-muted" x-text="weightLogs.length + ' Messungen protokolliert'"></span>
+                </div>
+                <div class="card-body">
+                    <canvas id="weightChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Mahlzeiten des ausgewählten Tages -->
+            <div>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3 class="h6 fw-bold mb-0">
+                        Einträge am <span x-text="formatDateGerman(selectedDate)"></span>
+                    </h3>
+                    <button type="button" @click="showMealModal = !showMealModal" class="btn btn-sm btn-primary">
+                        <i class="bi me-1" :class="showMealModal ? 'bi-x-lg' : 'bi-plus-circle'"></i>
+                        <span x-text="showMealModal ? 'Schließen' : 'Eintrag hinzufügen'"></span>
+                    </button>
+                </div>
+
+            <!-- Inline-Formular: Direkt nach dem Button ausklappbar -->
+            <div x-show="showMealModal">
+                <div class="card shadow-sm rounded-4 mb-3">
+                    <div>
+                        <h4 x-text="newMeal.meal_type === 'water' ? '💧 Wasser / Trinken eintragen' : '🥗 Mahlzeit eintragen'"></h4>
+                        <button type="button" @click="showMealModal = false" class="btn btn-sm btn-outline-secondary">✕</button>
+                    </div>
+
+                    <form @submit.prevent="submitMeal()">
+                        <div>
+                            <div>
+                                <label>Kategorie</label>
+                                <select x-model="newMeal.meal_type" class="form-select">
+                                    <option value="breakfast">🥣 Frühstück</option>
+                                    <option value="lunch">🥗 Mittagessen</option>
+                                    <option value="dinner">🍲 Abendessen</option>
+                                    <option value="snack">🍎 Snacks</option>
+                                    <option value="water">💧 Wasser & Getränke</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label>Bezeichnung *</label>
+                                <input type="text" x-model="newMeal.title" required class="form-control" :placeholder="newMeal.meal_type === 'water' ? 'z.B. Mineralwasser, Tee' : 'z.B. Lachs mit Kartoffeln'">
+                            </div>
+                        </div>
+
+                        <div>
+                            <div>
+                                <label x-text="newMeal.meal_type === 'water' ? 'Kalorien (kcal)' : 'Kalorien (kcal) *'"></label>
+                                <input type="number" min="0" x-model="newMeal.calories" :required="newMeal.meal_type !== 'water'" class="form-control" placeholder="0">
+                            </div>
+                            <div>
+                                <label x-text="newMeal.meal_type === 'water' ? 'Menge (z.B. 500 ml)' : 'Menge / Portion'"></label>
+                                <input type="text" x-model="newMeal.amount" class="form-control" :placeholder="newMeal.meal_type === 'water' ? 'z.B. 500 ml' : 'z.B. 350g'">
+                            </div>
+                            <div>
+                                <label>Protein (g)</label>
+                                <input type="number" step="0.1" min="0" x-model="newMeal.protein_g" class="form-control" placeholder="0">
+                            </div>
+                            <div>
+                                <label>Carbs (g)</label>
+                                <input type="number" step="0.1" min="0" x-model="newMeal.carbs_g" class="form-control" placeholder="0">
+                            </div>
+                            <div>
+                                <label>Fett (g)</label>
+                                <input type="number" step="0.1" min="0" x-model="newMeal.fat_g" class="form-control" placeholder="0">
+                            </div>
+                        </div>
+
+                        <div>
+                            <button type="button" @click="showMealModal = false" class="btn btn-outline-secondary">Abbrechen</button>
+                            <button type="submit" class="btn btn-outline-secondary">
+                                Eintragen
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Mahlzeiten-Gruppierung (Frühstück, Mittag, Abend, Snacks, Wasser) -->
+            <div>
+                <template x-for="cat in mealCategories" :key="cat.key">
+                    <div class="card shadow-sm rounded-4 mb-3">
+                        <div>
+                            <span x-text="cat.icon + ' ' + cat.title"></span>
+                            <span :style="cat.key === 'water' ? 'color: #38bdf8;' : 'color: var(--primary);'" x-text="getCategorySubtitle(cat.key)"></span>
+                        </div>
+                        
+                        <!-- Liste der Einträge -->
+                        <div>
+                            <template x-for="meal in getMealsForCategory(cat.key)" :key="meal.id">
+                                <div class="card shadow-sm rounded-3 p-2">
+                                    <div>
+                                        <div x-text="meal.title"></div>
+                                        <div>
+                                            <span x-show="meal.amount" x-text="meal.amount + ' • '"></span>
+                                            <span x-show="meal.meal_type !== 'water'" x-text="'P: ' + meal.protein_g + 'g | K: ' + meal.carbs_g + 'g | F: ' + meal.fat_g + 'g'"></span>
+                                            <span x-show="meal.meal_type === 'water'">💧 Flüssigkeit</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span :style="meal.meal_type === 'water' ? 'color: #38bdf8;' : 'color: var(--accent);'" x-text="meal.meal_type === 'water' ? (meal.amount || (meal.calories ? meal.calories + ' ml' : 'Wasser')) : (meal.calories + ' kcal')"></span>
+                                        <button type="button" @click="deleteMeal(meal.id)" class="btn btn-sm btn-outline-secondary" title="Löschen">✕</button>
+                                    </div>
+                                </div>
+                            </template>
+                            
+                            <div x-show="getMealsForCategory(cat.key).length === 0">
+                                Keine Einträge
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <!-- MODAL 1: ZIELE & BEDARFSRECHNER -->
+    <template x-if="showGoalModal">
+    <div class="modal d-block show bg-dark bg-opacity-75 p-2 p-sm-3" tabindex="-1" @click.self="showGoalModal = false">
+        <div class="modal-dialog modal-dialog-centered modal-lg mw-100 mx-auto modal-dialog-scrollable">
+            <form class="modal-content rounded-4 shadow" @submit.prevent="saveGoals()">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-bullseye me-1"></i>Ziele &amp; Kalorienrechner</h5>
+                    <button type="button" @click="showGoalModal = false" class="btn-close" aria-label="Schließen"></button>
+                </div>
+
+                <div class="modal-body d-flex flex-column gap-3">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold">Startgewicht (kg)</label>
+                            <input type="number" step="0.1" x-model="goal.start_weight" class="form-control form-control-sm" placeholder="z.B. 85.0">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold">Zielgewicht (kg)</label>
+                            <input type="number" step="0.1" x-model="goal.target_weight" class="form-control form-control-sm" placeholder="z.B. 75.0">
+                        </div>
+                    </div>
+
+                    <!-- Rechner-Parameter -->
+                    <div class="border rounded-3 p-3 d-flex flex-column gap-2 bg-body-tertiary">
+                        <div class="small fw-bold text-primary"><i class="bi bi-lightning-charge me-1"></i>Kalorienbedarfs-Rechner (Mifflin-St. Jeor)</div>
+                        <div class="row g-2">
+                            <div class="col-4">
+                                <label class="form-label small">Geschlecht</label>
+                                <select x-model="goal.gender" class="form-select form-select-sm">
+                                    <option value="male">Männlich</option>
+                                    <option value="female">Weiblich</option>
+                                </select>
+                            </div>
+                            <div class="col-4">
+                                <label class="form-label small">Alter</label>
+                                <input type="number" min="10" max="120" x-model="goal.age" class="form-control form-control-sm" placeholder="35">
+                            </div>
+                            <div class="col-4">
+                                <label class="form-label small">Größe (cm)</label>
+                                <input type="number" min="100" max="250" x-model="goal.height_cm" class="form-control form-control-sm" placeholder="180">
+                            </div>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label small">Aktivitätslevel</label>
+                                <select x-model="goal.activity_level" class="form-select form-select-sm">
+                                    <option value="1.2">Sitzend (Büro)</option>
+                                    <option value="1.375">Leicht aktiv (1-3x Sport)</option>
+                                    <option value="1.55">Moderat aktiv (3-5x Sport)</option>
+                                    <option value="1.725">Sehr aktiv (6-7x Sport)</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small">Ziel</label>
+                                <select x-model="goal.goal_type" class="form-select form-select-sm">
+                                    <option value="lose">Abnehmen (-400 kcal)</option>
+                                    <option value="maintain">Halten (+/- 0 kcal)</option>
+                                    <option value="gain">Aufbau (+350 kcal)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="button" @click="calculateRecommendedCalories()" class="btn btn-sm btn-outline-primary">
+                            Vorschlag berechnen &amp; übernehmen
+                        </button>
+                    </div>
+
+                    <div>
+                        <label class="form-label small fw-semibold">Tägliches Ziel (kcal)</label>
+                        <input type="number" step="10" min="500" max="10000" x-model="goal.target_calories" required class="form-control">
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-6 col-sm-3">
+                            <label class="form-label small">Protein (g)</label>
+                            <input type="number" min="0" x-model="goal.target_protein_g" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-6 col-sm-3">
+                            <label class="form-label small">Carbs (g)</label>
+                            <input type="number" min="0" x-model="goal.target_carbs_g" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-6 col-sm-3">
+                            <label class="form-label small">Fett (g)</label>
+                            <input type="number" min="0" x-model="goal.target_fat_g" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-6 col-sm-3">
+                            <label class="form-label small">Wasser (ml)</label>
+                            <input type="number" step="100" min="500" x-model="goal.target_water_ml" class="form-control form-control-sm">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" @click="showGoalModal = false" class="btn btn-outline-secondary">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    </template>
+
+    <!-- MODAL 2: GEWICHTS-HISTORIE TABELLE -->
+    <template x-if="showWeightHistoryModal">
+    <div class="modal d-block show bg-dark bg-opacity-75 p-2 p-sm-3" tabindex="-1" @click.self="showWeightHistoryModal = false">
+        <div class="modal-dialog modal-dialog-centered mw-100 mx-auto modal-dialog-scrollable">
+            <div class="modal-content rounded-4 shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-graph-up me-1"></i>Gewichtsmessungen</h5>
+                    <button type="button" @click="showWeightHistoryModal = false" class="btn-close" aria-label="Schließen"></button>
+                </div>
+
+                <div class="modal-body d-flex flex-column gap-2">
+                    <template x-for="item in weightLogs.slice().reverse()" :key="item.id">
+                        <div class="border rounded-3 px-3 py-2 d-flex justify-content-between align-items-center gap-2">
+                            <div>
+                                <strong x-text="item.weight + ' kg'"></strong>
+                                <span class="small text-muted ms-2" x-text="item.date"></span>
+                                <div class="small text-muted" x-show="item.note" x-text="item.note"></div>
+                            </div>
+                            <button type="button" @click="deleteWeightLog(item.id)" class="btn btn-sm btn-outline-danger" title="Löschen">
+                                <i class="bi bi-trash3"></i>
+                            </button>
+                        </div>
+                    </template>
+                    <div x-show="weightLogs.length === 0" class="text-center text-muted small py-3">
+                        Noch keine Gewichtsmessungen vorhanden.
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" @click="showWeightHistoryModal = false" class="btn btn-primary">Schließen</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    </template>
+</div>
+
+<script>
+function nutritionCockpit() {
+    return {
+        bucketId: '{{ bucket.id }}',
+        todayIso: '{{ today_iso }}',
+        selectedDate: '{{ today_iso }}',
+        goal: JSON.parse(document.getElementById('nutrition-goal-data')?.textContent || '{}'),
+        weightLogs: JSON.parse(document.getElementById('weight-history-data')?.textContent || '[]'),
+        meals: JSON.parse(document.getElementById('nutrition-meals-data')?.textContent || '[]'),
+        
+        showGoalModal: false,
+        showMealModal: false,
+        showWeightHistoryModal: false,
+        
+        quickWeightVal: '',
+        newMeal: {
+            meal_type: 'lunch',
+            title: '',
+            calories: '',
+            amount: '',
+            protein_g: '',
+            carbs_g: '',
+            fat_g: ''
+        },
+        
+        mealCategories: [
+            { key: 'breakfast', title: 'Frühstück', icon: '🥣' },
+            { key: 'lunch', title: 'Mittagessen', icon: '🥗' },
+            { key: 'dinner', title: 'Abendessen', icon: '🍲' },
+            { key: 'snack', title: 'Snacks & Drinks', icon: '🍎' },
+            { key: 'water', title: 'Wasser & Flüssigkeit', icon: '💧' }
+        ],
+
+        chartInstance: null,
+
+        init() {
+            this.$nextTick(() => {
+                setTimeout(() => {
+                    this.renderChart();
+                }, 150);
+            });
+        },
+
+        get currentWeight() {
+            if (this.weightLogs && this.weightLogs.length > 0) {
+                return this.weightLogs[this.weightLogs.length - 1].weight;
+            }
+            return this.goal.start_weight || null;
+        },
+
+        get weightDiffFromStart() {
+            if (this.currentWeight && this.goal.start_weight) {
+                return Math.round((this.currentWeight - this.goal.start_weight) * 10) / 10;
+            }
+            return null;
+        },
+
+        get mealsForSelectedDate() {
+            return this.meals.filter(m => m.date === this.selectedDate);
+        },
+
+        getMealsForCategory(catKey) {
+            return this.mealsForSelectedDate.filter(m => m.meal_type === catKey);
+        },
+
+        getCategoryCalories(catKey) {
+            return this.getMealsForCategory(catKey).reduce((acc, m) => acc + (parseInt(m.calories) || 0), 0);
+        },
+
+        get dayTotalCalories() {
+            return this.mealsForSelectedDate.reduce((acc, m) => acc + (parseInt(m.calories) || 0), 0);
+        },
+
+        get dayTotalProtein() {
+            return Math.round(this.mealsForSelectedDate.reduce((acc, m) => acc + (parseFloat(m.protein_g) || 0), 0) * 10) / 10;
+        },
+
+        get dayTotalCarbs() {
+            return Math.round(this.mealsForSelectedDate.reduce((acc, m) => acc + (parseFloat(m.carbs_g) || 0), 0) * 10) / 10;
+        },
+
+        get dayTotalFat() {
+            return Math.round(this.mealsForSelectedDate.reduce((acc, m) => acc + (parseFloat(m.fat_g) || 0), 0) * 10) / 10;
+        },
+
+        get dayTotalWater() {
+            return this.mealsForSelectedDate
+                .filter(m => m.meal_type === 'water')
+                .reduce((sum, m) => {
+                    const match = (m.amount || '').match(/(\d+)/);
+                    if (match) return sum + parseInt(match[1], 10);
+                    return sum + (parseInt(m.calories) || 0);
+                }, 0);
+        },
+
+        get waterPercent() {
+            const target = parseInt(this.goal.target_water_ml) || 2500;
+            return Math.round((this.dayTotalWater / target) * 100);
+        },
+
+        getCategorySubtitle(catKey) {
+            if (catKey === 'water') {
+                return `${this.dayTotalWater} ml`;
+            }
+            return `${this.getCategoryCalories(catKey)} kcal`;
+        },
+
+        get calorieDiff() {
+            return (this.goal.target_calories || 2000) - this.dayTotalCalories;
+        },
+
+        get caloriePercent() {
+            const target = this.goal.target_calories || 2000;
+            return Math.round((this.dayTotalCalories / target) * 100);
+        },
+
+        changeDate(days) {
+            const d = new Date(this.selectedDate);
+            d.setDate(d.getDate() + days);
+            this.selectedDate = d.toISOString().split('T')[0];
+        },
+
+        setDateToday() {
+            this.selectedDate = this.todayIso;
+        },
+
+        onDateChanged() {},
+
+        formatDateGerman(isoStr) {
+            if (!isoStr) return '';
+            const p = isoStr.split('-');
+            if (p.length === 3) return `${p[2]}.${p[1]}.${p[0]}`;
+            return isoStr;
+        },
+
+        quickAddWater(ml) {
+            const payload = {
+                meal_type: 'water',
+                title: 'Wasser',
+                amount: `${ml} ml`,
+                calories: 0,
+                protein_g: 0,
+                carbs_g: 0,
+                fat_g: 0,
+                date: this.selectedDate
+            };
+            fetch(`/nutrition/${this.bucketId}/meal/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this.getCSRFToken()
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    this.meals.push(data);
+                }
+            });
+        },
+
+        calculateRecommendedCalories() {
+            const weight = parseFloat(this.goal.start_weight || this.currentWeight || 75);
+            const height = parseFloat(this.goal.height_cm || 175);
+            const age = parseFloat(this.goal.age || 30);
+            
+            let bmr;
+            if (this.goal.gender === 'female') {
+                bmr = 10 * weight + 6.25 * height - 5 * age - 161;
+            } else {
+                bmr = 10 * weight + 6.25 * height - 5 * age + 5;
+            }
+
+            const act = parseFloat(this.goal.activity_level || 1.2);
+            let tdee = bmr * act;
+
+            if (this.goal.goal_type === 'lose') {
+                tdee -= 400;
+            } else if (this.goal.goal_type === 'gain') {
+                tdee += 350;
+            }
+
+            this.goal.target_calories = Math.max(1200, Math.round(tdee));
+        },
+
+        saveGoals() {
+            fetch(`/nutrition/${this.bucketId}/goal/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this.getCSRFToken()
+                },
+                body: JSON.stringify(this.goal)
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    this.showGoalModal = false;
+                    this.renderChart();
+                }
+            });
+        },
+
+        submitWeightQuick() {
+            if (!this.quickWeightVal) return;
+            fetch(`/nutrition/${this.bucketId}/weight/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this.getCSRFToken()
+                },
+                body: JSON.stringify({
+                    date: this.selectedDate,
+                    weight: this.quickWeightVal
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    const existingIdx = this.weightLogs.findIndex(w => w.isoDate === data.isoDate);
+                    if (existingIdx >= 0) {
+                        this.weightLogs[existingIdx] = data;
+                    } else {
+                        this.weightLogs.push(data);
+                        this.weightLogs.sort((a,b) => a.isoDate.localeCompare(b.isoDate));
+                    }
+                    this.quickWeightVal = '';
+                    this.renderChart();
+                }
+            });
+        },
+
+        deleteWeightLog(logId) {
+            if (!confirm('Messung wirklich löschen?')) return;
+            fetch(`/nutrition/weight/${logId}/delete/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': this.getCSRFToken() }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    this.weightLogs = this.weightLogs.filter(w => w.id !== logId);
+                    this.renderChart();
+                }
+            });
+        },
+
+        submitMeal() {
+            if (this.newMeal.meal_type === 'water' && !this.newMeal.title) {
+                this.newMeal.title = 'Wasser';
+            }
+            const payload = {
+                ...this.newMeal,
+                calories: this.newMeal.calories || 0,
+                protein_g: this.newMeal.protein_g || 0,
+                carbs_g: this.newMeal.carbs_g || 0,
+                fat_g: this.newMeal.fat_g || 0,
+                date: this.selectedDate
+            };
+            fetch(`/nutrition/${this.bucketId}/meal/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this.getCSRFToken()
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    this.meals.push(data);
+                    this.showMealModal = false;
+                    this.newMeal = {
+                        meal_type: 'lunch',
+                        title: '',
+                        calories: '',
+                        amount: '',
+                        protein_g: '',
+                        carbs_g: '',
+                        fat_g: ''
+                    };
+                }
+            });
+        },
+
+        deleteMeal(mealId) {
+            fetch(`/nutrition/meal/${mealId}/delete/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': this.getCSRFToken() }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    this.meals = this.meals.filter(m => m.id !== mealId);
+                }
+            });
+        },
+
+        renderChart() {
+            const canvas = document.getElementById('weightChart');
+            if (!canvas) return;
+            if (typeof Chart === 'undefined') return;
+
+            if (this.chartInstance) {
+                try {
+                    this.chartInstance.stop();
+                    this.chartInstance.destroy();
+                } catch(e) {}
+                this.chartInstance = null;
+            }
+            try {
+                const existingChart = Chart.getChart(canvas);
+                if (existingChart) {
+                    existingChart.stop();
+                    existingChart.destroy();
+                }
+            } catch(e) {}
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            const labels = this.weightLogs.map(w => w.date);
+            const dataPoints = this.weightLogs.map(w => w.weight);
+
+            const datasets = [{
+                label: 'Körpergewicht (kg)',
+                data: dataPoints,
+                borderColor: '#00e676',
+                backgroundColor: 'rgba(0, 230, 118, 0.1)',
+                fill: true,
+                tension: 0.3,
+                pointBackgroundColor: '#00e676',
+                pointRadius: 4
+            }];
+
+            if (this.goal.target_weight && labels.length > 0) {
+                datasets.push({
+                    label: 'Zielgewicht',
+                    data: labels.map(() => this.goal.target_weight),
+                    borderColor: '#ff9100',
+                    borderDash: [5, 5],
+                    fill: false,
+                    pointRadius: 0
+                });
+            }
+
+            this.chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: {
+                    animation: false,
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#94a3b8' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#94a3b8' },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        y: {
+                            ticks: { color: '#94a3b8' },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        }
+                    }
+                }
+            });
+        },
+
+        getCSRFToken() {
+            const input = document.querySelector('[name=csrfmiddlewaretoken]');
+            if (input && input.value) return input.value;
+            const match = document.cookie.match(/csrftoken=([^;]+)/);
+            return match ? match[1] : '';
+        }
+    };
+}
+</script>

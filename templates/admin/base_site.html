@@ -1,0 +1,141 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | Buckezz 2.0 Admin{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link href="{% static 'design_studio/vendor/bootstrap-icons/bootstrap-icons.min.css' %}" rel="stylesheet">
+{% include "design_studio/includes/head.html" %}
+<style>
+    :root,
+    html[data-theme="light"],
+    html[data-theme="dark"] {
+        --primary: var(--app-primary);
+        --secondary: var(--app-primary);
+        --accent: var(--app-primary);
+        --primary-fg: #ffffff;
+        --body-bg: var(--bs-body-bg);
+        --body-fg: var(--bs-body-color);
+        --body-quiet-color: var(--bs-body-color);
+        --body-medium-color: var(--bs-body-color);
+        --body-loud-color: var(--bs-body-color);
+        --header-bg: var(--app-table-header-bg, var(--app-primary));
+        --header-color: var(--app-table-header-text, #ffffff);
+        --header-link-color: var(--app-table-header-text, #ffffff);
+        --header-branding-color: var(--app-table-header-text, #ffffff);
+        --breadcrumbs-bg: var(--app-table-filter-bg);
+        --breadcrumbs-fg: var(--bs-body-color);
+        --breadcrumbs-link-fg: var(--app-primary);
+        --link-fg: var(--app-primary);
+        --link-hover-fg: var(--app-primary);
+        --link-selected-fg: var(--app-primary);
+        --hairline-color: var(--app-table-border-color);
+        --border-color: var(--app-table-border-color);
+        --darkened-bg: var(--app-card-bg);
+        --selected-bg: var(--app-table-row-hover-bg);
+        --selected-row: var(--app-table-row-hover-bg);
+        --button-bg: var(--app-primary);
+        --button-hover-bg: var(--app-primary);
+        --default-button-bg: var(--app-primary);
+        --default-button-hover-bg: var(--app-primary);
+        --object-tools-bg: var(--app-primary);
+        --object-tools-hover-bg: var(--app-primary);
+    }
+    #header {
+        background: var(--app-gradient, var(--app-primary)) !important;
+        color: #ffffff;
+    }
+    #header a:link, #header a:visited {
+        color: #ffffff;
+    }
+    #branding {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .admin-back-to-app-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.18);
+        color: #ffffff !important;
+        font-size: 0.82rem;
+        font-weight: 600;
+        text-decoration: none !important;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+    }
+    .admin-back-to-app-btn:hover {
+        background: rgba(255, 255, 255, 0.3);
+    }
+    /* Admin Tables styled with Design Studio tokens */
+    .module caption,
+    .module h2,
+    .inline-group h2 {
+        background: var(--app-table-header-bg, var(--app-primary)) !important;
+        color: var(--app-table-header-text, #ffffff) !important;
+    }
+    .module caption a:link,
+    .module caption a:visited {
+        color: var(--app-table-header-text, #ffffff) !important;
+    }
+    #content-main table,
+    #changelist table,
+    .module table {
+        background: var(--app-table-body-bg, var(--app-card-bg));
+        color: var(--app-table-body-text, var(--bs-body-color));
+        border-color: var(--app-table-border-color);
+    }
+    #content-main table thead th,
+    #changelist table thead th,
+    .module table thead th {
+        background: var(--app-table-header-bg, var(--app-primary)) !important;
+        color: var(--app-table-header-text, #ffffff) !important;
+        border-color: var(--app-table-border-color) !important;
+    }
+    #content-main table thead th a:link,
+    #content-main table thead th a:visited,
+    #changelist table thead th a:link,
+    #changelist table thead th a:visited {
+        color: var(--app-table-header-text, #ffffff) !important;
+    }
+    #content-main table tbody td,
+    #content-main table tbody th,
+    #changelist table tbody td,
+    #changelist table tbody th,
+    .module table tbody td,
+    .module table tbody th {
+        background: var(--app-table-body-bg, transparent) !important;
+        color: var(--app-table-body-text, var(--bs-body-color)) !important;
+        border-bottom: 1px solid var(--app-table-border-color) !important;
+    }
+    #content-main table tbody tr:hover > td,
+    #content-main table tbody tr:hover > th,
+    #changelist table tbody tr:hover > td,
+    #changelist table tbody tr:hover > th,
+    .module table tbody tr:hover > td,
+    .module table tbody tr:hover > th {
+        background: var(--app-table-row-hover-bg) !important;
+    }
+</style>
+{% endblock extrastyle %}
+
+{% block extrahead %}
+{{ block.super }}
+<link rel="icon" type="image/svg+xml" href="{% static 'img/logo.svg' %}">
+<link rel="alternate icon" type="image/png" href="{% static 'img/logo.png' %}">
+{% endblock extrahead %}
+
+{% block branding %}
+<div id="site-name">
+    <a href="{% url 'admin:index' %}">
+        <i class="bi bi-bucket me-1"></i>Buckezz 2.0 Administration
+    </a>
+</div>
+<a href="{% url 'core:dashboard' %}" class="admin-back-to-app-btn">
+    <i class="bi bi-arrow-left"></i> Zurück zur App
+</a>
+{% endblock branding %}

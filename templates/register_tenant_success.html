@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block title %}Registrierung erfolgreich! - Buckezz 2.0{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-8 col-lg-6 text-center">
+    <div class="display-3 text-success mb-3"><i class="bi bi-check-circle"></i></div>
+    <h1 class="h2 fw-bold mb-2">Instanz erfolgreich erstellt!</h1>
+    <p class="text-muted mb-4">
+        Die Buckezz-Instanz für deine Familie wurde initialisiert und steht ab sofort bereit.
+    </p>
+
+    <div class="card shadow-sm rounded-4 text-start mb-4">
+        <div class="card-body d-flex flex-column gap-3">
+            <h3 class="h6 fw-bold text-primary border-bottom pb-2 mb-0">
+                <i class="bi bi-clipboard-data me-1"></i>Deine Instanz-Details
+            </h3>
+            <div>
+                <div class="text-muted text-uppercase small">Name der Instanz</div>
+                <div class="fw-bold">{{ instance_name }}</div>
+            </div>
+            <div>
+                <div class="text-muted text-uppercase small">Eure persönliche URL (Subdomain)</div>
+                <a href="{{ tenant_url }}" class="fw-bold text-break">{{ tenant_url }}</a>
+            </div>
+            <div class="alert alert-warning mb-0 small">
+                <strong><i class="bi bi-shield-check me-1"></i>Erste Schritte:</strong>
+                Klicke auf den Button unten und logge dich dort mit dem Administrator-Konto ein, das du gerade erstellt hast.
+            </div>
+        </div>
+    </div>
+
+    <div class="d-grid gap-2">
+        <a href="{{ tenant_url }}" class="btn btn-primary btn-lg">
+            <i class="bi bi-key me-1"></i>Jetzt in deiner Instanz einloggen
+        </a>
+        <a href="{% url 'core:home' %}" class="btn btn-link text-decoration-none">Zurück zur Haupt-Startseite</a>
+    </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

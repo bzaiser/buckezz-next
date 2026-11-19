@@ -1,0 +1,286 @@
+{% extends 'base.html' %}
+
+{% block title %}Vorlagen-Studio - Buckezz 2.0{% endblock %}
+
+{% block content %}
+<div class="container py-2" x-data="{ query: '' }">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Dashboard</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Vorlagen-Studio</li>
+            </ol>
+        </nav>
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#aiTemplateAssistantModal">
+                <i class="bi bi-stars me-1"></i>KI-Assistent (Gemini)
+            </button>
+            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importTemplateModal">
+                <i class="bi bi-upload me-1"></i>JSON Import
+            </button>
+            <a href="{% url 'core:template_studio_create' %}" class="btn btn-primary">
+                <i class="bi bi-plus-circle me-1"></i>Neue Vorlage bauen
+            </a>
+        </div>
+    </div>
+
+    <div class="mb-4">
+        <h1 class="h2 fw-bold mb-1"><i class="bi bi-ui-checks-grid me-2"></i>Vorlagen-Studio</h1>
+        <p class="text-muted small mb-0">Erstelle und gestalte Listen-Vorlagen grafisch per Drag &amp; Drop mit Echtzeit-Vorschau.</p>
+    </div>
+
+    <div class="kpi-bento-grid mb-4">
+        {% include "design_studio/components/kpi_card.html" with title="Vorlagen" value=total_templates icon="bi-ui-checks-grid" size="sm" state=1 %}
+        {% include "design_studio/components/kpi_card.html" with title="Aktive Listen" value=total_lists icon="bi-bucket" size="sm" state=2 %}
+        {% include "design_studio/components/kpi_card.html" with title="Logik-Typen" value=logic_types_count icon="bi-diagram-3" size="sm" state=3 %}
+    </div>
+
+    <div class="card shadow-sm rounded-4 mb-4">
+        <div class="card-body py-3">
+            <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="text" x-model="query" class="form-control" placeholder="Vorlagen durchsuchen...">
+                <button x-show="query !== ''" @click="query = ''" class="btn btn-outline-secondary" type="button">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        {% for cat in categories %}
+        <div class="col-12 col-md-6 col-lg-4" x-show="query === '' || '{{ cat.name|escapejs }}'.toLowerCase().includes(query.toLowerCase()) || '{{ cat.template.logic_type|default:'' }}'.toLowerCase().includes(query.toLowerCase())">
+            <div class="card h-100 shadow-sm rounded-4">
+                <div class="card-body d-flex flex-column justify-content-between gap-3">
+                    <div>
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="fs-2">
+                                    {% if cat.icon|slice:":3" == "bi-" %}<i class="bi {{ cat.icon }} text-primary"></i>{% else %}{{ cat.icon }}{% endif %}
+                                </span>
+                                <div>
+                                    <h3 class="h5 fw-bold mb-0">{{ cat.name }}</h3>
+                                    <span class="badge text-bg-primary">{{ cat.template.get_logic_type_display|default:"Standard" }}</span>
+                                </div>
+                            </div>
+                            <span class="badge text-bg-secondary rounded-pill">{{ cat.lists_count }} Listen</span>
+                        </div>
+
+                        {% if cat.template.help_purpose %}
+                        <p class="small text-muted mb-2">{{ cat.template.help_purpose|truncatechars:100 }}</p>
+                        {% endif %}
+
+                        <div class="d-flex flex-wrap gap-1 mt-2">
+                            {% for label in cat.active_field_labels %}
+                                <span class="badge bg-body-secondary text-body border">{{ label }}</span>
+                            {% empty %}
+                                <span class="small text-muted">Nur Basis-Felder (Titel &amp; Status)</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                        <div class="d-flex gap-1">
+                            <a href="{% url 'core:template_studio_edit' cat.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-pencil-square me-1"></i>Builder
+                            </a>
+                            <a href="{% url 'core:template_studio_export' cat.id %}" class="btn btn-sm btn-outline-secondary" title="Als JSON exportieren">
+                                <i class="bi bi-download"></i>
+                            </a>
+                        </div>
+                        {% if cat.lists_count == 0 %}
+                        <form action="{% url 'core:template_studio_delete' cat.id %}" method="post" onsubmit="return confirm('Vorlage „{{ cat.name|escapejs }}“ wirklich löschen?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Vorlage löschen">
+                                <i class="bi bi-trash3"></i>
+                            </button>
+                        </form>
+                        {% else %}
+                        <span class="small text-muted" title="Wird von Listen verwendet"><i class="bi bi-lock"></i></span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="card shadow-sm rounded-4 p-5 text-center">
+                <p class="text-muted mb-3">Noch keine Vorlagen vorhanden.</p>
+                <div>
+                    <a href="{% url 'core:template_studio_create' %}" class="btn btn-primary">Erste Vorlage bauen</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- JSON Import Modal -->
+<div class="modal fade" id="importTemplateModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content rounded-4" action="{% url 'core:template_studio_import' %}" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold"><i class="bi bi-upload me-1"></i>Vorlage importieren (JSON)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+            </div>
+            <div class="modal-body d-flex flex-column gap-3">
+                <div>
+                    <label class="form-label small fw-semibold">JSON-Datei hochladen</label>
+                    <input type="file" name="template_file" accept=".json,application/json" class="form-control form-control-sm">
+                </div>
+                <div>
+                    <label class="form-label small fw-semibold">Oder JSON direkt einfügen</label>
+                    <textarea name="template_json" rows="5" class="form-control form-control-sm font-monospace" placeholder='{"name": "Meine Vorlage", ...}'></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="submit" class="btn btn-primary">Importieren</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- KI-Assistent Modal (Gemini Prompt + Drag & Drop Import) -->
+<div class="modal fade" id="aiTemplateAssistantModal" tabindex="-1" aria-hidden="true"
+     x-data="{
+        appName: '',
+        appDesc: '',
+        createBucket: true,
+        copied: false,
+        dragActive: false,
+        jsonInput: '',
+        get generatedPrompt() {
+            const name = this.appName.trim() || 'Meine neue Liste';
+            const desc = this.appDesc.trim() || 'Verwaltung von Einträgen mit passenden Feldern.';
+            return `Erstelle für meine Django-App Buckezz 2.0 genau EIN valides JSON-Objekt (ohne weiteren Text) für folgende neue Vorlage & Liste:
+
+Name der Liste/App: ${name}
+Beschreibung & gewünschte Funktionen: ${desc}
+
+Nutze exakt dieses JSON-Schema:
+{
+  &quot;name&quot;: &quot;${name}&quot;,
+  &quot;bucket_title&quot;: &quot;${name}&quot;,
+  &quot;icon&quot;: &quot;Passendes einzelnes Emoji&quot;,
+  &quot;logic_type&quot;: &quot;generic | todo | gift | bucket | event | tracker | workout | nutrition&quot;,
+  &quot;flags&quot;: {
+    &quot;use_amount&quot;: false, &quot;use_price&quot;: false, &quot;use_brand&quot;: false, &quot;use_shop&quot;: false,
+    &quot;use_location&quot;: false, &quot;use_url&quot;: false, &quot;use_start_date&quot;: false, &quot;use_end_date&quot;: false,
+    &quot;use_reminder&quot;: false, &quot;use_persons&quot;: false, &quot;use_rating&quot;: false, &quot;use_tracker&quot;: false,
+    &quot;use_milestone&quot;: false, &quot;use_image&quot;: false, &quot;use_subchecklist&quot;: false, &quot;use_subchecklist_photos&quot;: false
+  },
+  &quot;behavior&quot;: {
+    &quot;use_is_public&quot;: true, &quot;use_allow_public_edit&quot;: false, &quot;use_beneficiary&quot;: false,
+    &quot;use_secret_santa&quot;: false, &quot;new_items_at_bottom&quot;: false
+  },
+  &quot;allowed_statuses_json&quot;: [
+    {&quot;key&quot;: &quot;active&quot;, &quot;label&quot;: &quot;Offen&quot;, &quot;completes&quot;: false},
+    {&quot;key&quot;: &quot;done&quot;, &quot;label&quot;: &quot;Erledigt&quot;, &quot;completes&quot;: true}
+  ],
+  &quot;allowed_roles_json&quot;: [
+    {&quot;key&quot;: &quot;rolle_key&quot;, &quot;label&quot;: &quot;Rollenname (z.B. Verliehen an, Geliehen von)&quot;, &quot;completes&quot;: false}
+  ],
+  &quot;logic_rules_json&quot;: {
+    &quot;hide_status_from_beneficiary&quot;: false,
+    &quot;enable_self_reserve&quot;: false,
+    &quot;reserve_button_label&quot;: &quot;Übernehmen&quot;,
+    &quot;show_price_summary&quot;: false,
+    &quot;enable_event_invitations&quot;: false,
+    &quot;enable_ical_sync&quot;: false,
+    &quot;notify_on_overdue&quot;: false,
+    &quot;notify_on_low_stock&quot;: false
+  },
+  &quot;ui_style_json&quot;: {
+    &quot;layout_mode&quot;: &quot;row | cards | stacked&quot;,
+    &quot;card_width&quot;: &quot;1/4 | 1/2 | 3/4 | hero&quot;,
+    &quot;density&quot;: &quot;normal | compact&quot;,
+    &quot;show_creator&quot;: true
+  },
+  &quot;custom_fields_json&quot;: [
+    {&quot;key&quot;: &quot;feld_key&quot;, &quot;label&quot;: &quot;Feldname&quot;, &quot;type&quot;: &quot;text | textarea | number | currency | date | url | image | select | radio | multiselect | checkbox | rating | color&quot;, &quot;options&quot;: &quot;Bei select/radio/multiselect: Option 1, Option 2; bei currency: Währungskürzel z.B. €&quot;}
+  ],
+  &quot;group_by&quot;: &quot;none | milestone | status | person | shop | brand | location&quot;,
+  &quot;summary_rule_json&quot;: {&quot;enabled&quot;: false, &quot;field&quot;: &quot;price&quot;, &quot;op&quot;: &quot;sum | avg | count&quot;, &quot;status_filter&quot;: &quot;&quot;, &quot;label&quot;: &quot;Summe&quot;, &quot;unit&quot;: &quot;€&quot;},
+  &quot;recurrence_json&quot;: {&quot;mode&quot;: &quot;none | daily | weekly | monthly | days&quot;, &quot;interval_days&quot;: 7},
+  &quot;help_purpose&quot;: &quot;Kurze Erklärung&quot;,
+  &quot;help_fields&quot;: &quot;Hinweise zu den Feldern&quot;,
+  &quot;help_example&quot;: &quot;Ein Praxis-Beispiel&quot;,
+  &quot;demo_items&quot;: [
+    {&quot;title&quot;: &quot;Beispiel-Eintrag 1&quot;, &quot;notes&quot;: &quot;Optional&quot;, &quot;custom_data_json&quot;: {}}
+  ]
+}
+
+Hinweise:
+- Setze use_tracker NUR auf true für wiederkehrende Tages-Check-ins oder Vorratsverbrauch (z. B. Medikamente, Gießen); für Status-/Sammlungslisten (z. B. Bücher, Filme, Aufgaben) setze use_tracker auf false und nutze allowed_statuses_json + custom_fields_json.
+- Nutze custom_fields_json für domänenspezifische Felder (z. B. Autor, Verkaufspreis, Verkaufsplattform, ISBN) und group_by: &quot;status&quot;, wenn verschiedene Status-Gruppen sichtbar sein sollen.
+- Setze summary_rule_json.enabled nur auf true für spezielle Auswertungen (z. B. custom:verkaufspreis); bei use_price: true wird die Preis-Summe bereits automatisch angezeigt.`;
+        },
+        handleFileDrop(evt) {
+            this.dragActive = false;
+            const file = evt.dataTransfer?.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => { this.jsonInput = e.target.result; };
+            reader.readAsText(file);
+        }
+     }">
+    <div class="modal-dialog modal-dialog-centered modal-lg mw-100 mx-auto modal-dialog-scrollable">
+        <form class="modal-content rounded-4" action="{% url 'core:template_studio_import' %}" method="post">
+            {% csrf_token %}
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold"><i class="bi bi-stars me-1"></i>KI-Vorlagen-Assistent (Gemini)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+            </div>
+            <div class="modal-body d-flex flex-column gap-3">
+                <!-- Schritt 1 -->
+                <div class="border rounded-3 p-3 d-flex flex-column gap-2">
+                    <div class="small fw-bold text-primary">1. Beschreibe deine gewünschte Liste / App</div>
+                    <div>
+                        <label class="form-label small fw-semibold mb-1">Name der App / Liste</label>
+                        <input type="text" x-model="appName" class="form-control form-control-sm" placeholder="z.B. KFZ-Wartungsbuch, Umfrage Sommerfest, Bücher-Tracker">
+                    </div>
+                    <div>
+                        <label class="form-label small fw-semibold mb-1">Was soll die Liste können?</label>
+                        <textarea x-model="appDesc" rows="4" class="form-control form-control-sm" placeholder="z.B. Kilometerstand, nächster TÜV-Termin, Werkstattkosten summieren, Belegfoto, als Karten-Grid anzeigen"></textarea>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="create_bucket" id="ai_create_bucket" x-model="createBucket">
+                        <label class="form-check-label small" for="ai_create_bucket">Direkt erste Liste inkl. Beispiel-Einträgen anlegen &amp; öffnen</label>
+                    </div>
+                </div>
+
+                <!-- Schritt 2 -->
+                <div class="border rounded-3 p-3 d-flex flex-column gap-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="small fw-bold text-primary">2. Prompt für Gemini kopieren</span>
+                        <button type="button" class="btn btn-sm btn-outline-primary"
+                                @click="navigator.clipboard.writeText(generatedPrompt); copied = true; setTimeout(() => copied = false, 2000)">
+                            <i class="bi me-1" :class="copied ? 'bi-check-lg text-success' : 'bi-clipboard'"></i>
+                            <span x-text="copied ? 'Kopiert!' : 'Prompt kopieren'"></span>
+                        </button>
+                    </div>
+                    <textarea readonly rows="5" class="form-control form-control-sm font-monospace" x-text="generatedPrompt"></textarea>
+                </div>
+
+                <!-- Schritt 3 -->
+                <div class="border rounded-3 p-3 d-flex flex-column gap-2"
+                     :class="dragActive ? 'border-primary bg-primary-subtle' : ''"
+                     @dragover.prevent="dragActive = true"
+                     @dragleave.prevent="dragActive = false"
+                     @drop.prevent="handleFileDrop($event)">
+                    <div class="small fw-bold text-primary">3. Fertiges JSON hier ablegen (Drag &amp; Drop) oder einfügen</div>
+                    <textarea name="template_json" x-model="jsonInput" rows="5" required class="form-control form-control-sm font-monospace" placeholder="JSON-Datei hierher ziehen oder Gemini-Antwort einfügen..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="submit" class="btn btn-primary" :disabled="!jsonInput.trim()">
+                    <i class="bi bi-magic me-1"></i>Vorlage &amp; Liste erstellen
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

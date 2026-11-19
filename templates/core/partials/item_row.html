@@ -1,0 +1,391 @@
+{% with ui=ui|default:bucket.category.template.get_ui_style %}
+{% if ui.layout_mode == 'cards' %}
+<div class="{% if ui.card_width == '1/4' %}col-12 col-sm-6 col-lg-3{% elif ui.card_width == '1/2' %}col-12 col-sm-6{% elif ui.card_width == '3/4' %}col-12 col-lg-9{% elif ui.card_width == 'hero' %}col-12{% else %}col-12 col-md-6 col-xl-4{% endif %}" id="item-{{ item.id }}" data-id="{{ item.id }}">
+<div class="card h-100 shadow-sm rounded-4 overflow-hidden">
+<div class="card-body {% if ui.density == 'compact' %}p-2{% else %}p-3{% endif %} d-flex flex-column justify-content-between gap-2 min-w-0">
+{% elif ui.layout_mode == 'stacked' %}
+<div class="card shadow-sm rounded-4 overflow-hidden" id="item-{{ item.id }}" data-id="{{ item.id }}">
+<div class="card-body {% if ui.density == 'compact' %}p-2{% else %}p-3{% endif %} d-flex flex-column gap-2 min-w-0">
+{% else %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 {% if ui.density == 'compact' %}py-1{% else %}py-2{% endif %} px-3 border-bottom" id="item-{{ item.id }}" data-id="{{ item.id }}">
+{% endif %}
+    <div class="d-flex align-items-start gap-2 flex-grow-1 min-w-0">
+        <div class="d-flex flex-column align-items-center gap-1 pt-1 flex-shrink-0">
+            {% if not bucket.is_secret_santa or is_beneficiary or request.user == bucket.owner %}
+            <input type="checkbox"
+                   {% if item.is_completed %}checked{% endif %}
+                   {% if not can_edit %}disabled{% endif %}
+                   class="form-check-input mt-0 status-check"
+                   {% if can_edit %}
+                   hx-post="{% url 'core:toggle_item' item.id %}"
+                   hx-target="#item-list"
+                   hx-swap="innerHTML"
+                   {% endif %}>
+            {% else %}
+            <i class="bi bi-pin-angle text-primary"></i>
+            {% endif %}
+            {% if can_edit and not item.is_completed %}
+            <span class="drag-handle btn btn-sm btn-outline-secondary border-0 p-0 lh-1" title="Ziehen zum Verschieben">
+                <i class="bi bi-grip-vertical"></i>
+            </span>
+            {% endif %}
+        </div>
+
+        <div class="flex-grow-1 min-w-0">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <strong class="text-break {% if item.is_completed %}text-decoration-line-through text-muted{% endif %}">{{ item.title }}</strong>
+
+                {% if bucket.category.template.use_milestone and item.target_milestone and not item.is_completed %}
+                    <span class="badge text-bg-primary">{{ item.get_target_milestone_display }}</span>
+                {% endif %}
+
+                {% if item.brand %}
+                    <span class="badge text-bg-secondary">{{ item.brand }}</span>
+                {% endif %}
+                {% if bucket.category.template.use_shop and item.shop %}
+                    <span class="badge bg-body-secondary text-body border"><i class="bi bi-shop me-1"></i>{{ item.shop }}</span>
+                {% endif %}
+                {% with st=item.effective_status_info %}
+                    {% if st %}
+                        <span class="badge {% if st.key == 'overdue' %}text-bg-danger{% elif st.key == 'waiting' %}text-bg-warning{% elif st.completes %}text-bg-success{% else %}text-bg-info{% endif %}">
+                            {{ st.label }}
+                        </span>
+                    {% endif %}
+                {% endwith %}
+            </div>
+
+            {% if item.notes %}
+            <p class="small text-muted mb-0 mt-1 text-break">{{ item.notes|truncatechars:140 }}</p>
+            {% endif %}
+
+            {% if bucket.category.template.use_milestone and item.is_completed %}
+                <div class="small text-success mt-1">
+                    <i class="bi bi-trophy me-1"></i>Erreicht
+                    {% if item.age_at_completion %}mit {{ item.age_at_completion }} Jahren{% endif %}
+                    am {{ item.completed_at|date:"d.m.Y" }}
+                    {% if item.target_milestone %}({{ item.get_target_milestone_display }}){% endif %}
+                </div>
+            {% endif %}
+
+            {% if item.url %}
+            <div class="mt-1">
+                <a href="{{ item.url }}" target="_blank" class="btn btn-outline-primary btn-sm py-0 px-2">
+                    <i class="bi bi-box-arrow-up-right me-1"></i>Link öffnen
+                </a>
+            </div>
+            {% endif %}
+
+            {% if bucket.category.template.use_start_date or bucket.category.template.use_end_date or bucket.category.template.use_reminder %}
+            <div class="d-flex flex-wrap gap-1 mt-1">
+                {% if bucket.category.template.use_start_date and item.start_date %}
+                <span class="badge text-bg-secondary"><i class="bi bi-calendar-event me-1"></i>Start: {{ item.start_date|date:"d.m.Y H:i" }}</span>
+                {% endif %}
+                {% if bucket.category.template.use_end_date and item.end_date %}
+                <span class="badge text-bg-secondary"><i class="bi bi-flag me-1"></i>Ende: {{ item.end_date|date:"d.m.Y H:i" }}</span>
+                {% endif %}
+                {% if bucket.category.template.use_reminder and item.reminder_at %}
+                    {% if item.reminder_sent %}
+                    <span class="badge text-bg-success" title="Erinnerungs-E-Mail wurde versendet">
+                        <i class="bi bi-envelope-check me-1"></i>{{ item.reminder_at|date:"d.m.Y H:i" }} (gesendet)
+                    </span>
+                    {% else %}
+                    <span class="badge text-bg-warning" title="Erinnerung geplant">
+                        <i class="bi bi-alarm me-1"></i>{{ item.reminder_at|date:"d.m.Y H:i" }}
+                    </span>
+                    {% endif %}
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if item.get_custom_field_display %}
+            <div class="d-flex flex-wrap align-items-center gap-1 mt-1">
+                {% for cf in item.get_custom_field_display %}
+                    {% if cf.type == 'url' %}
+                        <a href="{{ cf.value }}" target="_blank" class="badge text-bg-primary text-decoration-none">
+                            <i class="bi bi-link-45deg me-1"></i>{{ cf.label }}
+                        </a>
+                    {% elif cf.type == 'image' %}
+                        <a href="{{ cf.value }}" target="_blank" title="{{ cf.label }}">
+                            <img src="{{ cf.value }}" alt="{{ cf.label }}" class="img-thumbnail rounded-2" width="44">
+                        </a>
+                    {% elif cf.type == 'rating' %}
+                        <span class="badge text-bg-warning text-dark">
+                            <i class="bi bi-star-fill me-1"></i>{{ cf.label }}: {{ cf.value }}/5
+                        </span>
+                    {% elif cf.type == 'color' %}
+                        <span class="badge bg-body-secondary text-body border">
+                            {{ cf.label }}: <strong>{{ cf.value }}</strong>
+                        </span>
+                    {% else %}
+                        <span class="badge bg-body-secondary text-body border">{{ cf.label }}: <strong>{{ cf.value }}</strong></span>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if bucket.category.template.use_image %}
+                {% if item.image or item.images.exists %}
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                    {% if item.image %}
+                    <a href="{{ item.image.url }}" target="_blank">
+                        <img src="{{ item.image.url }}" alt="{{ item.title }}" class="img-thumbnail rounded-3" width="84">
+                    </a>
+                    {% endif %}
+                    {% for img in item.images.all %}
+                    <a href="{{ img.image.url }}" target="_blank">
+                        <img src="{{ img.image.url }}" alt="{{ item.title }} ({{ forloop.counter }})" class="img-thumbnail rounded-3" width="84">
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            {% endif %}
+
+            {% if item.subchecklist_json %}
+                {% if bucket.category.template.use_subchecklist or bucket.category.template.use_subchecklist_photos %}
+                <div class="mt-2 ps-2 border-start">
+                    <div class="small fw-semibold text-muted mb-1"><i class="bi bi-list-check me-1"></i>Einzelpunkte:</div>
+                    <div class="d-flex flex-column gap-2">
+                        {% for sub in item.subchecklist_json %}
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="form-check small mb-0">
+                                <input type="checkbox"
+                                       class="form-check-input"
+                                       {% if sub.done %}checked{% endif %}
+                                       {% if not can_edit %}disabled{% endif %}
+                                       {% if can_edit %}
+                                       hx-post="{% url 'core:toggle_subitem' item.id forloop.counter0 %}"
+                                       hx-target="#item-list"
+                                       hx-swap="innerHTML"
+                                       {% endif %}>
+                                <span class="form-check-label {% if sub.done %}text-decoration-line-through text-muted{% endif %}">{{ sub.title }}</span>
+                            </label>
+                            {% if sub.image %}
+                            <a href="{{ sub.image }}" target="_blank">
+                                <img src="{{ sub.image }}" alt="{{ sub.title }}" class="img-thumbnail rounded-2" width="44">
+                            </a>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            {% endif %}
+
+            {% if bucket.category.template.use_tracker %}
+                {% if item.tracker_times_list %}
+                <div class="mt-2">
+                    <div class="small fw-semibold text-muted mb-1">
+                        <i class="bi bi-calendar-check me-1"></i>Heutiger Status
+                    </div>
+                    <div class="d-flex flex-wrap gap-1">
+                        {% for t in item.tracker_times_list %}
+                        <button type="button"
+                                class="btn btn-sm py-0 px-2 {% if t in item.completed_tracker_times_today %}btn-success{% else %}btn-outline-secondary{% endif %}"
+                                hx-post="{% url 'core:toggle_tracker_log' item.id %}"
+                                hx-target="#item-list"
+                                hx-swap="innerHTML"
+                                hx-vals='{"scheduled_time": "{{ t }}"}'>
+                            <i class="bi {% if t in item.completed_tracker_times_today %}bi-check-circle-fill{% else %}bi-bell{% endif %} me-1"></i>
+                            {{ t }} Uhr
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                {% if item.tracker_stock_total is not None %}
+                <div class="mt-2 small">
+                    <span class="badge bg-body-secondary text-body border">
+                        <i class="bi bi-box-seam me-1"></i>Vorrat: {{ item.tracker_stock_total }}{% if item.tracker_stock_min %} / {{ item.tracker_stock_min }}{% endif %} {{ item.tracker_unit|default:"Einheiten" }}
+                    </span>
+                    {% if item.tracker_stock_min is not None and item.tracker_stock_total <= item.tracker_stock_min %}
+                    <span class="badge text-bg-warning ms-1">
+                        <i class="bi bi-exclamation-triangle me-1"></i>Niedriger Bestand
+                    </span>
+                    {% endif %}
+                </div>
+                {% endif %}
+            {% endif %}
+
+            {% if bucket.is_secret_santa and not is_beneficiary and not item.person_roles.exists and current_person %}
+            <div class="mt-1">
+                <button type="button" class="btn btn-outline-primary btn-sm"
+                        hx-post="{% url 'core:toggle_reservation' item.id %}"
+                        hx-target="#item-list"
+                        hx-swap="innerHTML">
+                    <i class="bi bi-gift me-1"></i>Schenken!
+                </button>
+            </div>
+            {% endif %}
+
+            {% if bucket.category.template.logic_type == 'event' or bucket.category.template.logic_rules_json.enable_self_reserve %}
+                {% if not bucket.is_secret_santa and not item.is_invitation and not item.person_roles.exists and current_person %}
+                <div class="mt-1">
+                    <button type="button" class="btn btn-outline-primary btn-sm"
+                            hx-post="{% url 'core:toggle_reservation' item.id %}"
+                            hx-target="#item-list"
+                            hx-swap="innerHTML">
+                        <i class="bi bi-hand-index-thumb me-1"></i>{{ bucket.category.template.logic_rules_json.reserve_button_label|default:"Übernehmen" }}
+                    </button>
+                </div>
+                {% endif %}
+            {% endif %}
+
+            {% if item.person_roles.exists and not is_beneficiary %}
+            <div class="d-flex flex-wrap align-items-center gap-1 mt-1">
+                {% for role in item.person_roles.all %}
+                    {% if role.person.phone or role.person.email %}
+                    <span class="badge text-bg-secondary d-inline-flex align-items-center gap-1">
+                        <i class="bi bi-person"></i>{{ role.person.name }}:
+                        {% if role.person.phone %}
+                            <a href="tel:{{ role.person.phone }}" class="text-reset text-decoration-none" title="Anrufen"><i class="bi bi-telephone"></i></a>
+                            <a href="https://wa.me/{{ role.person.phone|cut:' '|cut:'+'|cut:'-' }}" target="_blank" class="text-reset text-decoration-none" title="WhatsApp">WA</a>
+                        {% endif %}
+                        {% if role.person.email %}
+                            <a href="mailto:{{ role.person.email }}" class="text-reset text-decoration-none" title="E-Mail"><i class="bi bi-envelope"></i></a>
+                        {% endif %}
+                    </span>
+                    {% endif %}
+
+                    {% if bucket.owner == request.user or current_person and role.person_id == current_person.id %}
+                        {% if not bucket.is_secret_santa %}
+                        <select name="role"
+                                hx-post="{% url 'core:cycle_person_role' role.id %}"
+                                hx-target="#item-list"
+                                hx-swap="innerHTML"
+                                class="form-select form-select-sm w-auto py-0">
+                            {% for r in bucket.category.template.get_effective_roles %}
+                            <option value="{{ r.key }}" {% if role.role == r.key %}selected{% endif %}>{{ role.person.name }} ({{ r.label }})</option>
+                            {% endfor %}
+                            <option value="delete">Zuweisung löschen</option>
+                        </select>
+                        {% else %}
+                        <button type="button" class="badge text-bg-info border-0"
+                                title="Klicken um Status zu ändern"
+                                hx-post="{% url 'core:cycle_person_role' role.id %}"
+                                hx-target="#item-list"
+                                hx-swap="innerHTML">
+                            {{ role.person.name }} ({{ role.get_role_display }})
+                        </button>
+                        {% endif %}
+                    {% else %}
+                    <span class="badge text-bg-secondary" title="Status: {{ role.get_role_display }}">
+                        {{ role.person.name }} ({{ role.get_role_display }})
+                    </span>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if ui.show_creator %}
+                {% if item.created_by or item.guest_created_by %}
+                <div class="small text-muted mt-1">
+                    {% if item.created_by %}Erstellt von {{ item.created_by.username }}{% elif item.guest_created_by %}Erstellt von {{ item.guest_created_by }} (Gast){% endif %}
+                    {% if item.updated_by and item.updated_by != item.created_by %} | Geändert von {{ item.updated_by.username }}{% elif item.guest_updated_by and item.guest_updated_by != item.guest_created_by %} | Geändert von {{ item.guest_updated_by }} (Gast){% endif %}
+                </div>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="d-flex align-items-center gap-3 flex-wrap {% if ui.layout_mode == 'cards' or ui.layout_mode == 'stacked' %}justify-content-between border-top pt-2 mt-1{% endif %}">
+        {% if bucket.category.template.use_amount %}
+        <div class="d-flex align-items-center gap-1">
+            {% if item.amount_value is not None %}
+                {% if can_edit and not item.is_completed %}
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-secondary"
+                            hx-post="{% url 'core:adjust_amount' item.id %}"
+                            hx-vals='{"action": "decrement"}'
+                            hx-target="#item-list"
+                            hx-swap="innerHTML"
+                            title="Menge verringern">-</button>
+                    <span class="btn btn-outline-secondary disabled fw-bold">{{ item.amount_value|floatformat:"-2" }}</span>
+                    <button type="button" class="btn btn-outline-secondary"
+                            hx-post="{% url 'core:adjust_amount' item.id %}"
+                            hx-vals='{"action": "increment"}'
+                            hx-target="#item-list"
+                            hx-swap="innerHTML"
+                            title="Menge erhöhen">+</button>
+                </div>
+                {% else %}
+                <span class="badge text-bg-secondary">{{ item.amount_value|floatformat:"-2" }}</span>
+                {% endif %}
+                {% if item.unit %}
+                    <span class="small text-muted">{{ item.unit.name }}</span>
+                {% endif %}
+            {% else %}
+                <span class="badge text-bg-secondary">{{ item.amount|default:"-" }}</span>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if bucket.category.template.use_price and item.price %}
+        <span class="badge bg-body-secondary text-body border">
+            {{ item.price }} €
+        </span>
+        {% endif %}
+
+        {% if bucket.category.template.use_rating %}
+        <div class="d-flex align-items-center gap-1">
+            {% if can_edit and not item.is_completed %}
+                {% for i in "12345" %}
+                <button type="button" class="btn btn-sm p-0 border-0 text-warning"
+                        hx-post="{% url 'core:adjust_rating' item.id %}"
+                        hx-vals='{"rating": "{{ forloop.counter }}"}'
+                        hx-target="#item-list"
+                        hx-swap="innerHTML"
+                        title="{{ forloop.counter }} Sterne">
+                    <i class="bi {% if item.rating and forloop.counter <= item.rating %}bi-star-fill{% else %}bi-star{% endif %}"></i>
+                </button>
+                {% endfor %}
+            {% else %}
+                {% if item.rating %}
+                    {% for i in "12345" %}
+                        <i class="bi {% if forloop.counter <= item.rating %}bi-star-fill text-warning{% else %}bi-star text-muted{% endif %} small"></i>
+                    {% endfor %}
+                {% else %}
+                    <span class="text-muted small">-</span>
+                {% endif %}
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="btn-group btn-group-sm">
+            {% if can_edit %}
+            <button type="button" class="btn btn-outline-secondary"
+                    hx-get="{% url 'core:get_edit_form' bucket.id item.id %}"
+                    hx-target="#form-insertion-point"
+                    hx-swap="innerHTML"
+                    title="Bearbeiten">
+                <i class="bi bi-pencil"></i>
+            </button>
+            <button type="button" class="btn btn-outline-danger"
+                    hx-delete="{% url 'core:delete_item' item.id %}"
+                    hx-confirm="Diesen Eintrag wirklich löschen?"
+                    hx-target="#item-list"
+                    hx-swap="innerHTML"
+                    title="Löschen">
+                <i class="bi bi-trash3"></i>
+            </button>
+            {% else %}
+            <button type="button" class="btn btn-outline-secondary"
+                    hx-get="{% url 'core:get_edit_form' bucket.id item.id %}"
+                    hx-target="#form-insertion-point"
+                    hx-swap="innerHTML"
+                    title="Details ansehen">
+                <i class="bi bi-eye"></i>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+{% if ui.layout_mode == 'cards' %}
+</div>
+</div>
+</div>
+{% elif ui.layout_mode == 'stacked' %}
+</div>
+</div>
+{% else %}
+</div>
+{% endif %}
+{% endwith %}

@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-3" x-data="{ showHelpModal: false }">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item active" aria-current="page">Start</li>
+            </ol>
+        </nav>
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" onclick="window.history.back()" class="btn btn-outline-secondary btn-sm" title="Zurück">
+                <i class="bi bi-arrow-left"></i>
+            </button>
+            <button type="button" onclick="window.location.reload()" class="btn btn-outline-secondary btn-sm" title="Aktualisieren">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <button type="button" data-bs-toggle="modal" data-bs-target="#homeHelpModal" class="btn btn-outline-primary btn-sm" title="Startseite-Hilfe anzeigen">
+                <i class="bi bi-question-circle"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="card shadow-sm rounded-4 mb-4">
+        <div class="card-body p-4 p-md-5">
+            <h1 class="display-5 fw-bold mb-2">Ein Bucket für alles.</h1>
+            <p class="lead text-muted mb-4">Kombiniere Einkaufslisten, To-Dos, Merklisten und mehr an einem Ort.</p>
+
+            {% if user.is_authenticated %}
+                <h2 class="h4 fw-bold mb-2">Willkommen zurück, {{ user.username }}!</h2>
+                <p class="text-muted mb-3">Du hast aktuell {{ my_lists.count }} aktive Buckets.</p>
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="{% url 'core:dashboard' %}" class="btn btn-primary">
+                        <i class="bi bi-speedometer2 me-1"></i>Zum Dashboard
+                    </a>
+                    <a href="{% url 'core:dashboard' %}?create=1" class="btn btn-outline-primary">
+                        <i class="bi bi-plus-circle me-1"></i>Neuen Bucket erstellen
+                    </a>
+                </div>
+            {% else %}
+                <h2 class="h4 fw-bold mb-2">Bereit für Ordnung?</h2>
+                <p class="text-muted mb-3">Erstelle deine erste Liste oder trete einer gemeinsamen Liste bei.</p>
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="{% url 'core:login' %}?next={% url 'core:dashboard' %}" class="btn btn-primary">
+                        <i class="bi bi-key me-1"></i>Jetzt anmelden
+                    </a>
+                    {% if not request.tenant %}
+                        <a href="{% url 'core:register' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-house-add me-1"></i>Neue Instanz anlegen
+                        </a>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if user.is_authenticated or request.session.person_id %}
+    <section class="mt-4">
+        <h3 class="h5 fw-bold mb-3">Deine aktiven Buckets:</h3>
+        <div class="row g-3">
+            {% for category in categories %}
+            {% if category.visible_lists %}
+            <div class="col-12 col-sm-6 col-lg-4">
+                <div class="card h-100 shadow-sm rounded-4">
+                    <div class="card-body">
+                        <h4 class="h6 fw-bold mb-3">
+                            {% if category.icon|slice:":3" == "bi-" %}<i class="bi {{ category.icon }} text-primary me-1"></i>{% else %}{{ category.icon }}{% endif %}
+                            {{ category.name }}
+                        </h4>
+                        <div class="list-group list-group-flush">
+                            {% for bucket in category.visible_lists %}
+                                <a href="{% url 'core:list_detail' bucket.id %}" class="list-group-item list-group-item-action rounded-3 mb-1">
+                                    {{ bucket.title }}
+                                </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</div>
+
+<!-- Startseite Help Modal -->
+<div class="modal fade" id="homeHelpModal" tabindex="-1" aria-labelledby="homeHelpModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="homeHelpModalLabel">
+                    <i class="bi bi-lightbulb me-1"></i>Willkommen bei Buckezz 2.0!
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+            </div>
+            <div class="modal-body d-flex flex-column gap-3 small">
+                <p class="mb-0">
+                    <strong>Buckezz</strong> ist dein kollaboratives Cockpit zur Organisation von Listen, Plänen und Aktivitäten.
+                </p>
+                <div>
+                    <div class="fw-bold text-primary mb-1"><i class="bi bi-rocket-takeoff me-1"></i>Deine ersten Schritte:</div>
+                    <ul class="mb-0 ps-3">
+                        <li>Melde dich an oder erstelle ein Profil.</li>
+                        <li>Erstelle deinen ersten <strong>Bucket</strong> (eine intelligente Liste).</li>
+                        <li>Wähle aus maßgeschneiderten Vorlagen (Einkäufe, To-Dos, Gym-Trainingspläne oder Wichteln).</li>
+                    </ul>
+                </div>
+                <div>
+                    <div class="fw-bold text-primary mb-1"><i class="bi bi-people me-1"></i>Teilen leicht gemacht:</div>
+                    <p class="mb-0">
+                        Lade Freunde, Familie oder Gäste über persönliche Links ein. Deine Gäste können Listen sofort und <strong>ohne Registrierung</strong> einsehen und bearbeiten!
+                    </p>
+                </div>
+                <div>
+                    <div class="fw-bold text-primary mb-1"><i class="bi bi-phone me-1"></i>PWA (App auf Tablet & Smartphone):</div>
+                    <p class="mb-0">
+                        Nutze das „Teilen“- oder „Einstellungen“-Menü deines Browsers und wähle <strong>„Zum Startbildschirm hinzufügen“</strong>.
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Verstanden</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

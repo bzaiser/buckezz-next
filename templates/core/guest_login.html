@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-8 col-lg-5">
+            <div class="card shadow-sm rounded-4 p-4 text-center">
+        <div class="display-5 mb-3">
+            {% if bucket.category.icon|slice:":3" == "bi-" %}<i class="bi {{ bucket.category.icon }} text-primary"></i>{% else %}{{ bucket.category.icon }}{% endif %}
+        </div>
+        <h2 class="h4 fw-bold mb-1">Willkommen zur Liste</h2>
+        <h3 class="h5 text-primary mb-3">{{ bucket.title }}</h3>
+        <p class="text-muted mb-4">Bitte gib deinen Namen ein, bevor du auf die Liste zugreifst.</p>
+
+        <form method="POST">
+            {% csrf_token %}
+            <div class="mb-3">
+                <input type="text" name="guest_name" class="form-control form-control-lg" placeholder="Dein Name" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 btn-lg">Zur Liste gehen</button>
+        </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

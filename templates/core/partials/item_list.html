@@ -1,0 +1,114 @@
+{% with ui=ui|default:bucket.category.template.get_ui_style %}
+{% if item_alerts %}
+<div class="p-3 pb-0 d-flex flex-column gap-2">
+    {% for al in item_alerts %}
+    <div class="alert alert-{{ al.level }} py-2 px-3 small mb-0">
+        <i class="bi bi-exclamation-triangle me-1"></i>{{ al.text }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if kpi_summary %}
+<div class="kpi-bento-grid p-3 pb-0">
+    {% include "design_studio/components/kpi_card.html" with title=kpi_summary.label value=kpi_summary.total_display icon="bi-graph-up" size="sm" state=2 %}
+    {% include "design_studio/components/kpi_card.html" with title="Offen / Erledigt" value=kpi_summary.counts_display icon="bi-check2-all" size="sm" state=3 %}
+</div>
+{% endif %}
+
+{% if grouped_active is not None %}
+
+    <!-- ACTIVE ITEMS BY MILESTONE -->
+    {% for group in grouped_active %}
+        <div class="my-3 px-3 {% if group.is_current %}card border-warning p-3 rounded-4{% endif %}">
+            <h3 class="h6 fw-bold d-flex align-items-center gap-2 mb-2 {% if group.is_current %}text-warning{% else %}text-primary{% endif %}">
+                <span><i class="bi bi-pin-angle me-1"></i>{{ group.label }}</span>
+                {% if group.is_current %}
+                    <span class="badge bg-warning text-dark text-uppercase">Aktueller Fokus</span>
+                {% endif %}
+            </h3>
+
+            <div class="sortable-item-list {% if ui.layout_mode == 'cards' %}row g-3 p-2{% elif ui.layout_mode == 'stacked' %}d-flex flex-column gap-3 p-2{% else %}d-flex flex-column gap-2{% endif %}">
+                {% for item in group.items %}
+                    {% include 'core/partials/item_row.html' with can_edit=can_edit is_beneficiary=is_beneficiary current_person=current_person %}
+                {% endfor %}
+            </div>
+        </div>
+    {% empty %}
+        {% if not completed_items %}
+            <p class="text-muted text-center py-4" id="no-items">Noch keine Einträge vorhanden.</p>
+        {% else %}
+            <p class="text-muted text-center py-4" id="no-items">Keine offenen Einträge.</p>
+        {% endif %}
+    {% endfor %}
+
+    <!-- COMPLETED ITEMS BY MILESTONE -->
+    {% if completed_items %}
+    <details class="mt-4 px-3 pb-3" {% if not active_items %}open{% endif %}>
+        <summary class="text-muted fw-semibold py-2 border-bottom">Erledigte Einträge ({{ completed_items|length }})</summary>
+        <div class="completed-items mt-3 opacity-75 d-flex flex-column gap-4">
+            {% for group in grouped_completed %}
+                <div>
+                    <h4 class="h6 text-primary border-bottom pb-1 mb-2 d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-trophy me-1"></i>{{ group.label }}</span>
+                        <span class="small fw-normal text-muted">{{ group.items|length }} erledigt</span>
+                    </h4>
+                    <div class="{% if ui.layout_mode == 'cards' %}row g-3{% else %}d-flex flex-column gap-2{% endif %}">
+                        {% for item in group.items %}
+                            {% include 'core/partials/item_row.html' with can_edit=can_edit is_beneficiary=is_beneficiary current_person=current_person %}
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+
+{% else %}
+    <!-- STANDARD LIST (NOT BUCKET LIST) -->
+    <div class="sortable-item-list {% if ui.layout_mode == 'cards' %}row g-3 p-3{% elif ui.layout_mode == 'stacked' %}d-flex flex-column gap-3 p-3{% else %}d-flex flex-column gap-2{% endif %}">
+        {% for item in active_items %}
+            {% include 'core/partials/item_row.html' with can_edit=can_edit is_beneficiary=is_beneficiary current_person=current_person %}
+        {% empty %}
+            {% if not completed_items %}
+                <p class="text-muted text-center py-4" id="no-items">Noch keine Einträge vorhanden.</p>
+            {% else %}
+                <p class="text-muted text-center py-4" id="no-items">Keine offenen Einträge.</p>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    {% if completed_items %}
+    <details class="mt-4 px-3 pb-3" {% if not active_items %}open{% endif %}>
+        <summary class="text-muted fw-semibold py-2 border-bottom">Erledigte Einträge ({{ completed_items|length }})</summary>
+        <div class="completed-items mt-3 opacity-75 {% if ui.layout_mode == 'cards' %}row g-3{% else %}d-flex flex-column gap-2{% endif %}">
+            {% for item in completed_items %}
+                {% include 'core/partials/item_row.html' with can_edit=can_edit is_beneficiary=is_beneficiary current_person=current_person %}
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+{% endif %}
+{% endwith %}
+
+{% if bucket.category.template.use_price and total_price_sum > 0 %}
+    <div id="price-summary-bar" class="card shadow-sm rounded-4 mt-4">
+        <div class="card-body py-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="d-flex gap-3 flex-wrap small">
+                {% if status_price_breakdown %}
+                    {% for sb in status_price_breakdown %}
+                    <span class="text-muted">{{ sb.label }}: <strong class="{% if sb.completes %}text-success{% else %}text-warning{% endif %}">{{ sb.sum|floatformat:2 }} €</strong></span>
+                    {% endfor %}
+                {% else %}
+                    <span class="text-muted">Offen: <strong class="text-warning">{{ active_price_sum|floatformat:2 }} €</strong></span>
+                    {% if completed_price_sum > 0 %}
+                    <span class="text-muted">Erledigt: <strong class="text-success">{{ completed_price_sum|floatformat:2 }} €</strong></span>
+                    {% endif %}
+                {% endif %}
+            </div>
+            <div class="fw-bold">
+                Gesamt: <span class="text-primary">{{ total_price_sum|floatformat:2 }} €</span>
+            </div>
+        </div>
+    </div>
+{% endif %}
