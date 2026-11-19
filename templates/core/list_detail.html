@@ -772,11 +772,13 @@ document.addEventListener('alpine:init', () => {
                 <button type="button" @click="showPrintModal = true" class="btn btn-outline-secondary" title="PDF Export">
                     <i class="bi bi-file-earmark-pdf me-1"></i>PDF Export
                 </button>
-                {% if bucket.owner == user %}
+                {% if bucket.owner == user or user.is_superuser %}
+                    {% if bucket.owner == user %}
                     <button type="button" class="btn btn-outline-primary" @click="showShare = !showShare" title="Teilen">
                         <i class="bi bi-share me-1"></i>Teilen
                     </button>
-                    <a href="{% url 'admin:core_bucketlist_change' bucket.id %}" class="btn btn-outline-secondary" title="Liste konfigurieren">
+                    {% endif %}
+                    <a href="{% url 'core:list_configure' bucket.id %}" class="btn btn-outline-secondary" title="Liste konfigurieren">
                         <i class="bi bi-gear me-1"></i>Konfigurieren
                     </a>
                 {% endif %}

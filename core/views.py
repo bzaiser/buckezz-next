@@ -817,6 +817,69 @@ class ToggleListLayoutView(View):
         request.session.modified = True
         return render_item_list(request, bucket, False)
 
+
+class BucketListConfigureView(LoginRequiredMixin, View):
+    """Frontend configuration page for a BucketList (replaces Django Admin redirect)."""
+
+    def _get_authorized_bucket(self, request, pk):
+        bucket = get_object_or_404(BucketList.objects.select_related('category__template', 'owner'), id=pk)
+        if bucket.owner != request.user and not request.user.is_superuser:
+            return None
+        return bucket
+
+    def get(self, request, pk):
+        bucket = self._get_authorized_bucket(request, pk)
+        if not bucket:
+            return HttpResponseForbidden("Nur der Besitzer darf diese Liste konfigurieren.")
+        return render(request, 'core/list_configure.html', {
+            'bucket': bucket,
+            'categories': ListCategory.objects.select_related('template').order_by('name'),
+            'people': Person.objects.order_by('name'),
+            'users': User.objects.exclude(id=bucket.owner_id).order_by('username'),
+            'shared_user_ids': set(bucket.shared_with.values_list('id', flat=True)),
+        })
+
+    def post(self, request, pk):
+        bucket = self._get_authorized_bucket(request, pk)
+        if not bucket:
+            return HttpResponseForbidden("Nur der Besitzer darf diese Liste konfigurieren.")
+
+        title = (request.POST.get('title') or '').strip()
+        if title:
+            bucket.title = title[:255]
+
+        cat_id = request.POST.get('category')
+        if cat_id:
+            cat = ListCategory.objects.filter(id=cat_id).first()
+            if cat:
+                bucket.category = cat
+
+        bucket.is_public = request.POST.get('is_public') == 'on'
+        bucket.allow_public_edit = request.POST.get('allow_public_edit') == 'on'
+        bucket.is_secret_santa = request.POST.get('is_secret_santa') == 'on'
+        bucket.todo_sync_url = (request.POST.get('todo_sync_url') or '').strip() or None
+
+        ben_id = request.POST.get('beneficiary')
+        bucket.beneficiary = Person.objects.filter(id=ben_id).first() if ben_id else None
+        bucket.save()
+
+        shared_ids = [uid for uid in request.POST.getlist('shared_with') if uid.isdigit()]
+        bucket.shared_with.set(User.objects.filter(id__in=shared_ids).exclude(id=bucket.owner_id))
+
+        messages.success(request, f"Einstellungen für „{bucket.title}“ gespeichert.")
+        return redirect('core:list_detail', pk=bucket.id)
+
+
+class BucketListDeleteView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        bucket = get_object_or_404(BucketList, id=pk)
+        if bucket.owner != request.user and not request.user.is_superuser:
+            return HttpResponseForbidden("Nur der Besitzer darf diese Liste löschen.")
+        title = bucket.title
+        bucket.delete()
+        messages.success(request, f"Liste „{title}“ wurde gelöscht.")
+        return redirect('core:dashboard')
+
 class GetItemFormView(View):
     def get(self, request, bucket_id, item_id=None):
         bucket = get_object_or_404(BucketList, id=bucket_id)

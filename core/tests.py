@@ -501,3 +501,33 @@ class BuckezzRegressionTests(TestCase):
         self.assertRedirects(resp, reverse('core:list_detail', args=[bucket.id]))
         self.assertEqual(bucket.items.count(), 1)
         self.assertEqual(bucket.items.first().custom_data_json['km'], '45000')
+
+    def test_list_configure_frontend_page(self):
+        owner = User.objects.create_user(username='cfg_owner', password='secret')
+        other = User.objects.create_user(username='cfg_other', password='secret')
+        cat = ListCategory.objects.create(name='CfgCat', icon='📋')
+        ListTemplate.objects.create(category=cat, logic_type='generic')
+        bucket = BucketList.objects.create(title='Meine Liste', category=cat, owner=owner)
+
+        self.client.force_login(other)
+        self.assertEqual(self.client.get(reverse('core:list_configure', args=[bucket.id])).status_code, 403)
+
+        self.client.force_login(owner)
+        detail = self.client.get(reverse('core:list_detail', args=[bucket.id]))
+        self.assertContains(detail, reverse('core:list_configure', args=[bucket.id]))
+        self.assertNotContains(detail, '/admin/core/bucketlist/')
+
+        get_resp = self.client.get(reverse('core:list_configure', args=[bucket.id]))
+        self.assertEqual(get_resp.status_code, 200)
+
+        post_resp = self.client.post(reverse('core:list_configure', args=[bucket.id]), {
+            'title': 'Umbenannte Liste',
+            'category': cat.id,
+            'is_public': 'on',
+            'shared_with': [other.id],
+        })
+        self.assertRedirects(post_resp, reverse('core:list_detail', args=[bucket.id]))
+        bucket.refresh_from_db()
+        self.assertEqual(bucket.title, 'Umbenannte Liste')
+        self.assertTrue(bucket.is_public)
+        self.assertIn(other, bucket.shared_with.all())

@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'core:list_detail' bucket.id %}">{{ bucket.title }}</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Konfigurieren</li>
+                </ol>
+            </nav>
+            <h1 class="h4 fw-bold mb-0">
+                <i class="bi bi-gear me-1 text-primary"></i>Liste konfigurieren
+            </h1>
+        </div>
+        <div class="d-flex gap-2">
+            {% if user.is_staff %}
+            <a href="{% url 'core:template_studio_edit' bucket.category.id %}" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-sliders me-1"></i>Vorlage im Vorlagen-Studio bearbeiten
+            </a>
+            {% endif %}
+            <a href="{% url 'core:list_detail' bucket.id %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i>Zurück zur Liste
+            </a>
+        </div>
+    </div>
+
+    <form method="post" class="d-flex flex-column gap-3">
+        {% csrf_token %}
+
+        <div class="card shadow-sm rounded-4">
+            <div class="card-header py-3">
+                <h2 class="h6 fw-bold mb-0"><i class="bi bi-card-heading me-1"></i>Basis-Einstellungen</h2>
+            </div>
+            <div class="card-body p-3 d-flex flex-column gap-3">
+                <div>
+                    <label class="form-label fw-semibold" for="id_title">Name der Liste</label>
+                    <input type="text" name="title" id="id_title" value="{{ bucket.title }}" required class="form-control">
+                </div>
+                <div>
+                    <label class="form-label fw-semibold" for="id_category">Verwendete Vorlage</label>
+                    <select name="category" id="id_category" class="form-select">
+                        {% for cat in categories %}
+                        <option value="{{ cat.id }}" {% if cat.id == bucket.category_id %}selected{% endif %}>
+                            {{ cat.name }} ({{ cat.template.get_logic_type_display }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">Steuert verfügbare Felder, Status-Workflows und Ansicht der Liste.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm rounded-4">
+            <div class="card-header py-3">
+                <h2 class="h6 fw-bold mb-0"><i class="bi bi-share me-1"></i>Freigabe &amp; Zusammenarbeit</h2>
+            </div>
+            <div class="card-body p-3 d-flex flex-column gap-3">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" name="is_public" id="id_is_public" {% if bucket.is_public %}checked{% endif %}>
+                    <label class="form-check-label fw-semibold" for="id_is_public">Öffentlicher Link aktiv (ohne Login lesbar)</label>
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" name="allow_public_edit" id="id_allow_public_edit" {% if bucket.allow_public_edit %}checked{% endif %}>
+                    <label class="form-check-label fw-semibold" for="id_allow_public_edit">Gäste mit Link dürfen Einträge bearbeiten &amp; hinzufügen</label>
+                </div>
+                {% if users %}
+                <div>
+                    <label class="form-label fw-semibold" for="id_shared_with">Geteilt mit Benutzern</label>
+                    <select name="shared_with" id="id_shared_with" multiple class="form-select" size="4">
+                        {% for u in users %}
+                        <option value="{{ u.id }}" {% if u.id in shared_user_ids %}selected{% endif %}>{{ u.username }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">Mehrfachauswahl mit Strg / Cmd.</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if bucket.category.template.use_beneficiary or bucket.category.template.use_secret_santa or bucket.beneficiary or bucket.is_secret_santa %}
+        <div class="card shadow-sm rounded-4">
+            <div class="card-header py-3">
+                <h2 class="h6 fw-bold mb-0"><i class="bi bi-gift me-1"></i>Begünstigter &amp; Wichtel-Modus</h2>
+            </div>
+            <div class="card-body p-3 d-flex flex-column gap-3">
+                <div>
+                    <label class="form-label fw-semibold" for="id_beneficiary">Begünstigter (z. B. Geburtstagskind)</label>
+                    <select name="beneficiary" id="id_beneficiary" class="form-select">
+                        <option value="">-- Niemand --</option>
+                        {% for p in people %}
+                        <option value="{{ p.id }}" {% if bucket.beneficiary_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" name="is_secret_santa" id="id_is_secret_santa" {% if bucket.is_secret_santa %}checked{% endif %}>
+                    <label class="form-check-label fw-semibold" for="id_is_secret_santa">Wichtel-Modus (Reservierungen vor Begünstigtem verbergen)</label>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card shadow-sm rounded-4">
+            <div class="card-header py-3">
+                <h2 class="h6 fw-bold mb-0"><i class="bi bi-calendar-check me-1"></i>Kalender-Synchronisation (optional)</h2>
+            </div>
+            <div class="card-body p-3">
+                <label class="form-label fw-semibold" for="id_todo_sync_url">Microsoft To-Do / ICS-Link</label>
+                <input type="url" name="todo_sync_url" id="id_todo_sync_url" value="{{ bucket.todo_sync_url|default:'' }}" placeholder="https://..." class="form-control">
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2">
+            <a href="{% url 'core:list_detail' bucket.id %}" class="btn btn-outline-secondary">Abbrechen</a>
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check-circle me-1"></i>Einstellungen speichern
+            </button>
+        </div>
+    </form>
+
+    <div class="card border-danger shadow-sm rounded-4 mt-4">
+        <div class="card-body p-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+                <div class="fw-bold text-danger"><i class="bi bi-trash3 me-1"></i>Liste löschen</div>
+                <div class="small text-muted">Entfernt diese Liste inklusive aller Einträge unwiderruflich.</div>
+            </div>
+            <form method="post" action="{% url 'core:list_delete' bucket.id %}" onsubmit="return confirm('Liste „{{ bucket.title|escapejs }}“ wirklich unwiderruflich löschen?');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-danger btn-sm">Endgültig löschen</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
