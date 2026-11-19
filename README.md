@@ -1,32 +1,33 @@
 <div align="center">
   <img src="static/img/logo.svg" alt="Buckezz Logo" width="300"/>
   
-  <h3>One Bucket for Everything.</h3>
-  <p>Eine moderne, responsive Progressive Web App (PWA) zur smarten Listen-, To-Do- und Bucket-Verwaltung mit intelligenter Alexa-Sprachsteuerung und reisesicherer Kalendersynchronisation.</p>
+  <h3>Buckezz 2.0 — One Bucket for Everything.</h3>
+  <p>Moderne, konfigurierbare Progressive Web App (PWA) für smarte Listen-, Sammlungs-, Event-, Tracker- und To-Do-Verwaltung mit eigenem Vorlagen-Studio, KI-Assistent, Alexa-Sprachsteuerung und reisesicherer Kalendersynchronisation.</p>
 </div>
 
 ---
 
-## 🌟 Premium Features
+## 🌟 Features in Buckezz 2.0
 
-*   **Vollständig anpassbares Glassmorphism-UI:** Echtzeit-Theme-System zur Personalisierung von Primärfarbe, Akzentfarbe, Glastransparenz, Hintergrund und Kontrasten.
-*   **Mobile-First & PWA:** Optimal abgestimmt auf alle Bildschirmgrößen mit horizontal scrollbaren Listen. Kann direkt über den Webbrowser als native App auf dem Homescreen installiert werden.
-*   **Smarte Listen-Vorlagen (Smart Templates):** Vordefinierte Vorlagen wie To-Do-Listen, Weinvorräte, Medikamentenpläne, Haustier-Planer, Pflanzenpflege, Wunschlisten und **🏥 Arzt-Termine**. Jede Liste besitzt interaktive Hilfe-Modals und formatierte Praxisbeispiele.
-*   **📧 Intelligente E-Mail-Erinnerungen:**
-    *   Sende automatisierte E-Mails bei fälligen To-Dos an alle zugewiesenen Personen.
-    *   **Echtzeit-Status-Badges:** Direkt in der Listenansicht siehst du, ob ein Wecker aussteht (`⏰ [Zeit] Uhr`) oder bereits erfolgreich verschickt wurde (`📩 [Zeit] Uhr (gesendet)`).
+*   **Design Studio & Bootstrap 5 UI:** Zentrales Theme-System (`django-design-studio`) für Farben, Typografie, Hell-/Dunkelmodus, Navigations-Layout und einfärbbare Design-Icons (`bi-*`) sowie Emojis.
+*   **Vorlagen-Studio (No-Code Builder):** Eigene Vorlagen per Drag & Drop zusammenstellen – inklusive Status-Workflows (`allowed_statuses_json`), Personen-Rollen (`allowed_roles_json`), Zusatzfeldern (Text, Zahl, Währung mit Kürzel, Datum, URL, Bild, Dropdown, Umfrage Einfach-/Mehrfachauswahl, Checkbox, Bewertung, Farbe), Gruppierung, KPI-Auswertung (mit Status-Filter), Wiederkehr-Automatik und Live-Vorschau.
+*   **KI-Vorlagen-Assistent (Gemini):** App-Idee kurz beschreiben, fertigen Schema-Prompt kopieren und das erzeugte JSON per Drag & Drop importieren – inklusive automatischer Anlage von Vorlage, Liste und Beispiel-Einträgen.
+*   **Flexible Ansichten & Plausibilitäts-Checks:** Pro Liste umschaltbar zwischen **Zeile**, **Karten-Grid** (`1/4`, `1/2`, `3/4`, `1 Hero`) und **Detail-Stapel** (wird in der Session gemerkt), Quick-Button *„1 Tag vor Ende“* für Erinnerungen sowie nicht-blockierende Plausibilitätshinweise bei Status- und Rollenwechseln.
+*   **Mobile-First & PWA:** Responsive Layouts für Desktop und Smartphone, installierbar als App auf dem Homescreen.
+*   **Smarte Standard-Vorlagen:** Einkaufsliste, To-Do, Weinvorrat, Veranstaltungsplaner, Medikamentenplan, Wunschliste (inkl. Wichtel-Modus), Haustier-Planer, Pflanzen-Pflege, Bucket List, Arzt-Termine, Trainingsplan (Gym Cockpit), Geliehen & Verliehen sowie Kalorien- & Gewichtstracker.
+*   **📧 Intelligente E-Mail-Erinnerungen:** Automatisierte Erinnerungs-Mails mit Echtzeit-Status-Badges (`Erinnerung geplant` / `(gesendet)`).
 *   **🌍 Reisesicherer Zeitzonen-Sync & Outlook-Fix (Hybrid-Engine):**
-    *   **Im Browser:** Vollautomatische Standorterkennung auf Reisen! Das System liest deine lokale Browser-Zeitzone aus und stellt das Web-Interface in Echtzeit um.
-    *   **Im Kalender (Outlook, Google Calendar, Apple):** Exporte und iCal-Abonnements (`.ics`) werden unter Verwendung deiner einstellbaren **Heimat-Zeitzone** und dem standardkonformen `TZID`-Parameter generiert. Dies **verhindert zuverlässig den legendären Microsoft-Outlook-Bug**, der abonnierte UTC-Zeiten bei Sommer-/Winterzeit-Wechseln um 1 bis 2 Stunden verschiebt!
-*   **🎙️ Smart Alexa Integration:** Sprich mit deinen Listen! Durch unseren integrierten **deutschen NLP-Parser (Natural Language Processing)** kannst du per Sprache komplexe Einkäufe diktieren, die automatisch in Bezeichnung, menge, Marke, Geschäft und Preis zerlegt werden.
+    *   **Im Browser:** Automatische Zeitzonen-Erkennung über das Cookie `django_timezone`.
+    *   **Im Kalender (Outlook, Google Calendar, Apple):** iCal-Abonnements (`.ics`) mit einstellbarer **Heimat-Zeitzone** und `TZID`-Parameter (verhindert den Outlook-DST-Versatz).
+*   **🎙️ Smart Alexa Integration:** Deutscher NLP-Parser für Spracheingaben (Bezeichnung, Menge, Marke, Geschäft, Preis) inkl. Multi-User-Routing.
 
 ---
 
 ## 🛠️ Technologie-Stack
 
-*   **Backend:** Python 3.11 / Django 5.x
+*   **Backend:** Python 3.13 / Django 6.x
 *   **Datenbank:** SQLite 3 (persistent über Docker-Volume angebunden)
-*   **Frontend:** HTML5, Vanilla CSS (CSS Variables), HTMX (für flüssige Teil-Seiten-Updates), Alpine.js (für reaktive UI-Elemente)
+*   **Frontend:** Bootstrap 5, `django-design-studio`, HTMX (Teil-Seiten-Updates), Alpine.js (reaktive UI-Komponenten), SortableJS, Tom Select
 *   **Kalender:** RFC 5545 iCalendar Feeds / FullCalendar
 *   **Server / Deployment:** Gunicorn / WhiteNoise (Statische Dateien), Docker Compose
 
@@ -228,33 +229,12 @@ Buckezz unterstützt echtes **Multi-User Voice Routing** für den gesamten Haush
 
 ---
 
-## 🎨 Globales Branding & Farbthemen-Management (Multi-Tenant)
+## 🎨 Design Studio & Farbthemen
 
-Buckezz besitzt ein hochentwickeltes Farbthemen-System, das sowohl im Benutzer-Interface als auch im Django-Admin-Panel für ein konsistentes, edles Branding sorgt.
+Buckezz 2.0 nutzt **Django Design Studio** für ein einheitliches Erscheinungsbild im gesamten Frontend und Admin-Bereich.
 
-### 1. Farbthemen exportieren & importieren (UI)
-Du kannst deine mühevoll zusammengestellten Designs kinderleicht sichern und mit anderen teilen:
-* **Exportieren:** Klicke in den **⚙️ Einstellungen** unter *„Farbthema teilen & sichern“* auf **"Code kopieren"**. Das System kopiert ein kompaktes JSON direkt in deine Zwischenablage.
-* **Importieren:** Klicke bei einem anderen Benutzer/Mandanten auf **"Code einfügen"**, füge das JSON ein und sieh dir die Live-Vorschau in Echtzeit an! Mit *„Speichern“* wird das Design dauerhaft in der Datenbank gesichert.
-
-### 2. Administrator-Befehle (CLI / NAS)
-Für Administratoren stehen leistungsstarke CLI-Befehle im Docker-Container bereit, um das Branding systemweit zu steuern:
-
-* **Das standardisierte Design in einen bestimmten Mandanten einspielen:**
-  Löscht alle alten Themes im Mandanten und spielt das vordefinierte `custom_theme.json` ein:
-  ```bash
-  docker exec -it buckezz-web-1 python manage.py seed_tenant_theme <mandanten_slug>
-  ```
-* **Die Master-Datenbankvorlage aktualisieren:**
-  Aktualisiert die Master-Vorlage (`db_template.sqlite3`). Jeder **neu registrierte** Mandant startet ab der ersten Sekunde automatisch mit deinen Standardfarben und deinem Custom-Logo, ohne dass manuelle Einstellungen nötig sind:
-  ```bash
-  docker exec -it buckezz-web-1 python manage.py build_template_db
-  ```
-* **Migrationen über alle Mandanten-Datenbanken ausführen:**
-  Migriert die Zentral-Datenbank sowie alle isolierten Mandanten-Datenbanken in einem Rutsch und aktualisiert danach die Master-Vorlage:
-  ```bash
-  docker exec -it buckezz-web-1 python manage.py migrate_all
-  ```
+* **Visuelle Anpassung:** Über den Menüpunkt **Design Studio** in den Einstellungen passt du Primär-/Akzentfarben, Hell-/Dunkelmodus, Layout-Dichte, Schriftarten und Hintergründe in Echtzeit an.
+* **Design-Icons & Emojis:** Im Vorlagen-Studio lassen sich für Kategorien und Buckets sowohl einfärbbare Bootstrap-Icons (`bi-*` passend zur Theme-Farbe) als auch bunte Emojis auswählen.
 
 ---
 
