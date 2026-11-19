@@ -48,9 +48,9 @@ class Command(BaseCommand):
             self.stdout.write("🌱 Seed-Standardvorlagen (Einkaufsliste, Sport, Gesundheit...) einspielen...")
             call_command('seed_templates')
 
-            # 5b. Optionales benutzerdefiniertes Admin-Design (Theme) laden, falls vorhanden
+            # 5b. Optionales benutzerdefiniertes Admin-Design (Theme) laden, falls vorhanden und kompatibel
             fixture_path = os.path.join(settings.BASE_DIR, 'core', 'fixtures', 'custom_theme.json')
-            if os.path.exists(fixture_path):
+            if os.path.exists(fixture_path) and 'admin_interface' in settings.INSTALLED_APPS:
                 self.stdout.write("🎨 Lade benutzerdefiniertes Admin-Design aus Fixtures...")
                 call_command('loaddata', fixture_path, verbosity=1)
 
