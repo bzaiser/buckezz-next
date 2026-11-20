@@ -20,7 +20,7 @@
 
     <!-- ACTIVE ITEMS BY MILESTONE -->
     {% for group in grouped_active %}
-        <div class="my-3 px-3 {% if group.is_current %}card border-warning p-3 rounded-4{% endif %}">
+        <div class="my-3 px-2 px-sm-3 {% if group.is_current %}card border-warning p-2 p-sm-3 rounded-4{% endif %}">
             <h3 class="h6 fw-bold d-flex align-items-center gap-2 mb-2 {% if group.is_current %}text-warning{% else %}text-primary{% endif %}">
                 <span><i class="bi bi-pin-angle me-1"></i>{{ group.label }}</span>
                 {% if group.is_current %}
@@ -44,7 +44,7 @@
 
     <!-- COMPLETED ITEMS BY MILESTONE -->
     {% if completed_items %}
-    <details class="mt-4 px-3 pb-3" {% if not active_items %}open{% endif %}>
+    <details class="mt-4 px-2 px-sm-3 pb-3" {% if not active_items %}open{% endif %}>
         <summary class="text-muted fw-semibold py-2 border-bottom">Erledigte Einträge ({{ completed_items|length }})</summary>
         <div class="completed-items mt-3 opacity-75 d-flex flex-column gap-4">
             {% for group in grouped_completed %}
@@ -66,7 +66,7 @@
 
 {% else %}
     <!-- STANDARD LIST (NOT BUCKET LIST) -->
-    <div class="sortable-item-list {% if ui.layout_mode == 'cards' %}row g-3 p-3{% elif ui.layout_mode == 'stacked' %}d-flex flex-column gap-3 p-3{% else %}d-flex flex-column gap-2{% endif %}">
+    <div class="sortable-item-list {% if ui.layout_mode == 'cards' %}row g-2 g-sm-3 p-2 p-sm-3{% elif ui.layout_mode == 'stacked' %}d-flex flex-column gap-2 gap-sm-3 p-2 p-sm-3{% else %}d-flex flex-column gap-2{% endif %}">
         {% for item in active_items %}
             {% include 'core/partials/item_row.html' with can_edit=can_edit is_beneficiary=is_beneficiary current_person=current_person %}
         {% empty %}
@@ -79,7 +79,7 @@
     </div>
 
     {% if completed_items %}
-    <details class="mt-4 px-3 pb-3" {% if not active_items %}open{% endif %}>
+    <details class="mt-4 px-2 px-sm-3 pb-3" {% if not active_items %}open{% endif %}>
         <summary class="text-muted fw-semibold py-2 border-bottom">Erledigte Einträge ({{ completed_items|length }})</summary>
         <div class="completed-items mt-3 opacity-75 {% if ui.layout_mode == 'cards' %}row g-3{% else %}d-flex flex-column gap-2{% endif %}">
             {% for item in completed_items %}

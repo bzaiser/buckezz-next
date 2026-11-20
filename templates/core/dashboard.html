@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container py-2" x-data="{
+<div class="px-0 px-sm-1 px-md-2 py-2" x-data="{
     showCreateModal: {% if request.GET.create %}true{% else %}false{% endif %},
     showTemplateHelp: false,
     showHelpModal: false,

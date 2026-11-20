@@ -717,7 +717,7 @@ document.addEventListener('alpine:init', () => {
 });
 </script>
 
-<div class="container py-2" x-data="listDetail()" @click.away="showShare = false">
+<div class="px-0 px-sm-1 px-md-2 py-2" x-data="listDetail()" @click.away="showShare = false">
 
 <!-- Hidden csrf token input for ajax logging -->
 <form class="d-none">{% csrf_token %}</form>
