@@ -46,6 +46,13 @@
     {% if completed_items %}
     <details class="mt-4 px-2 px-sm-3 pb-3" {% if not active_items %}open{% endif %}>
         <summary class="text-muted fw-semibold py-2 border-bottom">Erledigte Einträge ({{ completed_items|length }})</summary>
+        {% if effective_group_by != 'milestone' %}
+        <div class="completed-items mt-3 opacity-75 {% if ui.layout_mode == 'cards' %}row g-2 g-sm-3{% else %}d-flex flex-column gap-2{% endif %}">
+            {% for item in completed_items %}
+                {% include 'core/partials/item_row.html' with can_edit=can_edit is_beneficiary=is_beneficiary current_person=current_person %}
+            {% endfor %}
+        </div>
+        {% else %}
         <div class="completed-items mt-3 opacity-75 d-flex flex-column gap-4">
             {% for group in grouped_completed %}
                 <div>
@@ -61,6 +68,7 @@
                 </div>
             {% endfor %}
         </div>
+        {% endif %}
     </details>
     {% endif %}
 
