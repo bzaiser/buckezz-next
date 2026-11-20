@@ -1557,7 +1557,14 @@ class ThemeSettingsView(LoginRequiredMixin, View):
         settings, _ = UserSetting.objects.get_or_create(user=request.user)
         from core.models import Person
         person, _ = Person.objects.get_or_create(user=request.user, defaults={'name': request.user.username})
-        return render(request, 'core/settings.html', {'settings': settings, 'person': person})
+        ctx = {'settings': settings, 'person': person}
+        if request.user.is_staff:
+            try:
+                from ops_kit.views import get_updates_context
+                ctx.update(get_updates_context())
+            except Exception:
+                pass
+        return render(request, 'core/settings.html', ctx)
 
     def post(self, request):
         settings, _ = UserSetting.objects.get_or_create(user=request.user)

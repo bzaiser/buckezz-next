@@ -2,8 +2,12 @@ FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
+ENV PYTHONPATH=/opt/ds-pkg
+ENV PIP_CACHE_DIR=/tmp/pip-cache
 
 WORKDIR /app
+
+RUN mkdir -p /opt/ds-pkg && chmod 777 /opt/ds-pkg
 
 RUN apt-get update && apt-get install -y \
     build-essential \
