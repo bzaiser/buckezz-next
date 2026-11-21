@@ -467,6 +467,15 @@
                                         </div>
                                     </div>
 
+                                    <div>
+                                        <label class="form-label small fw-semibold mb-1">Listen-Genre (Theme-Stil)</label>
+                                        <select name="ui_genre" x-model="uiStyle.genre" class="form-select form-select-sm">
+                                            {% for gk, gl in genre_choices %}
+                                            <option value="{{ gk }}">{{ gl }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+
                                     <hr class="my-1">
 
                                     <div class="d-flex flex-column gap-2">

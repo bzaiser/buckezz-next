@@ -312,6 +312,7 @@ class BuckezzRegressionTests(TestCase):
             'logic_type': 'generic',
             'ui_layout_mode': 'cards',
             'ui_density': 'compact',
+            'ui_genre': 'scifi',
             # ui_show_creator omitted -> False
         })
         self.assertRedirects(resp, reverse('core:template_studio'))
@@ -319,6 +320,7 @@ class BuckezzRegressionTests(TestCase):
         cat = ListCategory.objects.get(name='Karten-Liste')
         self.assertEqual(cat.template.get_ui_style()['layout_mode'], 'cards')
         self.assertEqual(cat.template.get_ui_style()['density'], 'compact')
+        self.assertEqual(cat.template.get_ui_style()['genre'], 'scifi')
         self.assertFalse(cat.template.get_ui_style()['show_creator'])
 
         bucket = BucketList.objects.create(title='Karten-Test', category=cat, owner=staff)
@@ -326,6 +328,7 @@ class BuckezzRegressionTests(TestCase):
         detail_resp = self.client.get(reverse('core:list_detail', args=[bucket.id]))
         self.assertEqual(detail_resp.status_code, 200)
         self.assertContains(detail_resp, 'col-12 col-md-6 col-xl-4')
+        self.assertContains(detail_resp, 'data-genre="scifi"')
         self.assertNotContains(detail_resp, 'Erstellt von ui_admin')
 
     def test_custom_person_role_completes_item(self):

@@ -662,7 +662,13 @@ class BucketListDetailView(DetailView):
         context['grouped_active'] = grouped_active
         context['grouped_completed'] = grouped_completed
         context['effective_group_by'] = group_mode
-        context['ui'] = _get_effective_ui_style(self.request, bucket)
+        ui_style = _get_effective_ui_style(self.request, bucket)
+        context['ui'] = ui_style
+        if ui_style.get('genre'):
+            from design_studio.genres import get_genre_definition
+            genre_def = get_genre_definition(ui_style['genre'])
+            if genre_def:
+                context['active_genre'] = genre_def
         context['kpi_summary'] = _compute_kpi_summary(tpl, active_items, completed_items)
         context['item_alerts'] = _collect_item_alerts(tpl, active_items, completed_items)
         context['is_beneficiary'] = is_beneficiary
@@ -2485,7 +2491,7 @@ class TemplateStudioBuilderView(StaffRequiredMixin, View):
         ]
         allowed_roles = tpl.allowed_roles_json if (tpl and isinstance(tpl.allowed_roles_json, list)) else []
         logic_rules = tpl.logic_rules_json if (tpl and isinstance(tpl.logic_rules_json, dict)) else {}
-        ui_style = tpl.get_ui_style() if tpl else {'layout_mode': 'row', 'card_width': '1/2', 'density': 'normal', 'show_creator': True}
+        ui_style = tpl.get_ui_style() if tpl else {'layout_mode': 'row', 'card_width': '1/2', 'density': 'normal', 'show_creator': True, 'genre': ''}
         custom_fields = tpl.custom_fields_json if (tpl and isinstance(tpl.custom_fields_json, list)) else []
         summary_rule = tpl.summary_rule_json if (tpl and isinstance(tpl.summary_rule_json, dict)) else {}
         recurrence = tpl.recurrence_json if (tpl and isinstance(tpl.recurrence_json, dict)) else {}
@@ -2659,11 +2665,16 @@ class TemplateStudioBuilderView(StaffRequiredMixin, View):
         density = request.POST.get('ui_density', 'normal')
         if density not in ('normal', 'compact'):
             density = 'normal'
+        from design_studio.genres import is_valid_genre
+        genre = (request.POST.get('ui_genre') or '').strip()
+        if not is_valid_genre(genre):
+            genre = ''
         tpl.ui_style_json = {
             'layout_mode': layout_mode,
             'card_width': card_width,
             'density': density,
             'show_creator': request.POST.get('ui_show_creator') == 'on',
+            'genre': genre,
         }
         tpl.save()
 
@@ -2765,7 +2776,11 @@ class TemplateStudioImportView(StaffRequiredMixin, View):
         tpl.allowed_statuses_json = data.get('allowed_statuses_json') or []
         tpl.allowed_roles_json = data.get('allowed_roles_json') or []
         tpl.logic_rules_json = data.get('logic_rules_json') or {}
-        tpl.ui_style_json = data.get('ui_style_json') or {}
+        from design_studio.genres import is_valid_genre
+        imported_ui = data.get('ui_style_json') or {}
+        if isinstance(imported_ui, dict) and not is_valid_genre(imported_ui.get('genre', '')):
+            imported_ui = {**imported_ui, 'genre': ''}
+        tpl.ui_style_json = imported_ui
         tpl.custom_fields_json = data.get('custom_fields_json') or []
         tpl.group_by = data.get('group_by') or 'none'
         tpl.summary_rule_json = data.get('summary_rule_json') or {}

@@ -226,6 +226,7 @@ class ListTemplate(models.Model):
             'card_width': '1/3',
             'density': 'normal',
             'show_creator': True,
+            'genre': '',
         }
         if isinstance(self.ui_style_json, dict):
             defaults.update(self.ui_style_json)
