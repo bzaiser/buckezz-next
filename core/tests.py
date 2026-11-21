@@ -592,3 +592,78 @@ class BuckezzRegressionTests(TestCase):
         self.assertEqual(bucket.title, 'Umbenannte Liste')
         self.assertTrue(bucket.is_public)
         self.assertIn(other, bucket.shared_with.all())
+
+    def test_calendar_provider_todos_and_all_event_types(self):
+        from datetime import datetime
+        from django.utils import timezone
+
+        owner = User.objects.create_user(username='cal_owner', password='secret')
+        self.client.force_login(owner)
+
+        todo_cat = ListCategory.objects.create(name='To-Do Test', icon='✅', slug='todo-test')
+        ListTemplate.objects.create(
+            category=todo_cat,
+            logic_type='todo',
+            use_end_date=True,
+            use_reminder=True,
+            custom_fields_json=[{'key': 'due_check', 'label': 'Kontrolle', 'type': 'date', 'options': ''}],
+        )
+        todo_list = BucketList.objects.create(title='Meine To-Dos', category=todo_cat, owner=owner)
+
+        # Create To-Do via AddItemView with end_date, reminder_at, custom date
+        add_resp = self.client.post(reverse('core:add_item', args=[todo_list.id]), {
+            'title': 'Steuer abgeben',
+            'end_date': '2026-11-25T18:00',
+            'reminder_at': '2026-11-24T09:00',
+            'custom_due_check': '2026-11-23',
+            'notes': 'Belege prüfen',
+        })
+        self.assertIn(add_resp.status_code, (200, 204, 302))
+
+        # Event with start + end range and Bootstrap icon category
+        ev_cat = ListCategory.objects.create(name='Bücher Test', icon='bi-book', slug='buecher-test')
+        ListTemplate.objects.create(category=ev_cat, logic_type='event', use_start_date=True, use_end_date=True, use_tracker=True)
+        ev_list = BucketList.objects.create(title='Events', category=ev_cat, owner=owner)
+        ListItem.objects.create(
+            bucket_list=ev_list,
+            title='Buchclub',
+            start_date=timezone.make_aware(datetime(2026, 11, 20, 18, 0)),
+            end_date=timezone.make_aware(datetime(2026, 11, 20, 20, 0)),
+            tracker_times='08:00, 20:00',
+        )
+        ListItem.objects.create(
+            bucket_list=ev_list,
+            title='Projektstart',
+            start_date=timezone.make_aware(datetime(2026, 11, 18, 10, 0)),
+        )
+
+        # Realistic FullCalendar Europe/Berlin query string (including unencoded +01:00)
+        res = self.client.get(
+            reverse('cal_kit:events_json') + '?start=2026-10-26T00:00:00+01:00&end=2026-12-07T00:00:00+01:00'
+        )
+        self.assertEqual(res.status_code, 200)
+        events = res.json()
+        by_type = {}
+        for e in events:
+            et = (e.get('extendedProps') or {}).get('event_type')
+            by_type.setdefault(et, []).append(e)
+            # Never leak raw 'bi-...' class names into visible titles
+            self.assertNotIn('bi-book', e['title'])
+            self.assertFalse(e.get('editable', True))
+            self.assertTrue((e.get('extendedProps') or {}).get('read_only'))
+
+        self.assertEqual(len(by_type.get('end', [])), 1)
+        self.assertEqual(by_type['end'][0]['title'], 'Steuer abgeben')
+        self.assertEqual(len(by_type.get('reminder', [])), 1)
+        self.assertEqual(len(by_type.get('custom_date', [])), 1)
+        self.assertEqual(by_type['custom_date'][0]['start'], '2026-11-23')
+        self.assertEqual(len(by_type.get('range', [])), 1)
+        self.assertEqual(len(by_type.get('start', [])), 1)
+        self.assertEqual(len(by_type.get('tracker', [])), 2)
+
+        # iCal feed includes To-Do deadline, VALARM reminder, range, start, and custom date
+        ics = self.client.get(reverse('cal_kit:ical_feed')).content.decode('utf-8')
+        self.assertIn('Steuer abgeben', ics)
+        self.assertIn('BEGIN:VALARM', ics)
+        self.assertIn('Kontrolle', ics)
+        self.assertIn('Buchclub', ics)
