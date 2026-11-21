@@ -63,9 +63,10 @@ class TenantMiddleware:
                 # Haupt-Host bestimmen
                 if parts[-1] == 'localhost':
                     main_host = f"localhost{port_suffix}"
+                elif len(parts) > 1:
+                    main_host = f"{'.'.join(parts[1:])}{port_suffix}"
                 else:
-                    # Hauptdomain im Live-Betrieb
-                    main_host = f"buckezz.zaisers.myds.me{port_suffix}"
+                    main_host = f"buckezz-next.greatsmallstuff.de{port_suffix}"
                 
                 register_url = f"{request.scheme}://{main_host}/register/"
                 home_url = f"{request.scheme}://{main_host}/"
@@ -102,7 +103,14 @@ class TenantMiddleware:
 
         # Wildcard-Erkennung für buckezz.zaisers.myds.me
         if host.endswith('buckezz.zaisers.myds.me'):
-            if len(parts) > 4:
+            if len(parts) > 4 and parts[0] != 'www':
+                return parts[0]
+            return None
+
+        # Wildcard-Erkennung für greatsmallstuff.de (z.B. simon.buckezz-next.greatsmallstuff.de)
+        if host.endswith('greatsmallstuff.de'):
+            base_parts = 3 if 'buckezz-next' in host else 2
+            if len(parts) > base_parts and parts[0] != 'www':
                 return parts[0]
             return None
 

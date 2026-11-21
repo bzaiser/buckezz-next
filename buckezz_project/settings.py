@@ -29,10 +29,24 @@ SECRET_KEY = env('SECRET_KEY', default='django-insecure-buckezz-desktop-default-
 DEBUG = env('DEBUG', default=True)
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[])
-# Always allow Tailscale Funnel domains and localhost as guaranteed fallback
-ALLOWED_HOSTS += ['localhost', '127.0.0.1', '.ts.net', 'nas.sunfish-universe.ts.net', '.localhost', '.buckezz.zaisers.myds.me', '.zaisers.myds.me']
+# Always allow Tailscale Funnel domains, greatsmallstuff.de, and localhost as guaranteed fallback
+ALLOWED_HOSTS += [
+    'localhost',
+    '127.0.0.1',
+    '.ts.net',
+    'nas.sunfish-universe.ts.net',
+    '.localhost',
+    '.buckezz.zaisers.myds.me',
+    '.zaisers.myds.me',
+    '.greatsmallstuff.de',
+]
 CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
-CSRF_TRUSTED_ORIGINS += ['https://nas.sunfish-universe.ts.net']
+CSRF_TRUSTED_ORIGINS += [
+    'https://nas.sunfish-universe.ts.net',
+    'https://*.greatsmallstuff.de',
+    'https://greatsmallstuff.de',
+    'https://*.zaisers.myds.me',
+]
 
 # Trust the reverse proxy to determine the scheme (http vs https)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
