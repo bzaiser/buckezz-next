@@ -26,6 +26,14 @@ echo "📁 Bereite Datenverzeichnis vor..."
 mkdir -p "$ROOT_DIR/data"
 chmod -R 777 "$ROOT_DIR/data"
 
+# Update Baukasten Kits
+echo "📦 Aktualisiere Baukasten-Kits..."
+if docker compose exec web python manage.py help ops_auto_update >/dev/null 2>&1; then
+    docker compose exec web python manage.py ops_auto_update --force --apply || true
+else
+    docker compose exec web python manage.py design_studio_update --all-kits || true
+fi
+
 # Database migrations
 echo "⚙️ Prüfe Datenbank Migrationen (Registry & alle Mandanten)..."
 docker compose exec web python manage.py migrate_all
