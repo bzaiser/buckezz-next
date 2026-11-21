@@ -86,6 +86,12 @@ INSTALLED_APPS = [
     'core',
 ]
 
+try:
+    from ops_kit.runtime import apply_runtime_installed_apps
+    apply_runtime_installed_apps(INSTALLED_APPS, BASE_DIR)
+except ImportError:
+    pass
+
 MIDDLEWARE = [
     'core.middleware.TenantMiddleware',
     'django.middleware.security.SecurityMiddleware',

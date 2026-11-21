@@ -13,6 +13,15 @@ urlpatterns = [
     path('calendar/', include('cal_kit.urls')),
     path('healthz', ops_views.healthz_view, name='healthz'),
     path('healthz/', ops_views.healthz_view, name='healthz_slash'),
+]
+
+try:
+    from ops_kit.runtime import get_runtime_urlpatterns
+    urlpatterns += get_runtime_urlpatterns(settings.BASE_DIR, urlpatterns)
+except ImportError:
+    pass
+
+urlpatterns += [
     path('', include('pwa.urls')),
     path('', include('core.urls')),
     # Media-Dateien IMMER ausliefern (auch bei DEBUG=False im Gunicorn-Produktionsbetrieb)
