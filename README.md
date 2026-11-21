@@ -241,10 +241,13 @@ Buckezz 2.0 nutzt **Django Design Studio** für ein einheitliches Erscheinungsbi
 ## 🔄 Wartung, Updates & PWA-Cache
 
 ### App aktualisieren
-Wenn ein neues Update bereitsteht, kannst du die Anwendung auf deinem Server/NAS ganz einfach aktualisieren:
+Wenn ein neues Update bereitsteht, kannst du die Anwendung auf deinem Server/NAS ganz einfach aktualisieren (alle Baukasten-Kits liegen persistent im Volume `ds_pkg:/opt/ds-pkg`, Mandanten werden automatisch über `migrate_all` migriert):
 
 ```bash
-git pull
+# Schnelles Update (Git Pull + geänderte Kits nach /opt/ds-pkg + migrate_all + Restart)
+./docker/update-fast.sh
+
+# Vollständiger Container-Rebuild (inkl. /opt/ds-pkg-Sync)
 ./docker/update.sh
 ```
 

@@ -24,7 +24,8 @@ Project Rules - buckezz
 ## Infrastructure & Environment
 - **STRICT: NO Local Docker**: Config files only. No local execution of `docker` commands.
 - **KEINE Lokalen Installationen**: Führe niemals `pip install`, `npm install` etc. lokal aus. Alles muss im Container laufen.
-- **Deployment**: Synchronisation erfolgt über Git. Der Nutzer führt das Update auf dem NAS aus.
+- **Deployment**: Synchronisation erfolgt über Git. Der Nutzer führt `./docker/update-fast.sh` auf dem NAS aus.
+- **Persistente Baukasten-Kits**: Alle Kits liegen im Named Volume `ds_pkg:/opt/ds-pkg` (`PYTHONPATH=/opt/ds-pkg`, `DESIGN_STUDIO_TARGET=/opt/ds-pkg`). Optionale Kits werden über `data/installed_kits.json` (`ops_kit.runtime`) de-/aktiviert; `OPS_REQUIRED_KITS` schützt Pflicht-Kits (`domain_kit`, `grid_kit`, `seed_kit`, `design_studio`, `ops_kit`). Keine nicht-persistenten Terminal-Fixes anbieten; bei Multi-Tenant immer `migrate_all` verwenden.
 
 ## Troubleshooting & Support
 - **Three-Strike Rule**: Wenn ein Problem nach drei Versuchen nicht behoben ist, stoppen und Code-Stellen klar benennen.
