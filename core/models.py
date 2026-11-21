@@ -93,6 +93,13 @@ class Person(models.Model):
     def __str__(self):
         return self.name
 
+    def get_absolute_url(self):
+        from django.urls import reverse
+        try:
+            return reverse('domain_kit:persons') + '?tab=persons'
+        except Exception:
+            return '/domain/persons/?tab=persons'
+
     class Meta:
         verbose_name = _("Person")
         verbose_name_plural = _("Personen")
@@ -105,12 +112,20 @@ class ListCategory(models.Model):
     def __str__(self):
         return self.name
 
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('core:template_studio_edit', args=[self.pk])
+
     class Meta:
         verbose_name = _("Listen-Kategorie")
         verbose_name_plural = _("Listen-Kategorien")
 
 class ListTemplate(models.Model):
     category = models.OneToOneField(ListCategory, on_delete=models.CASCADE, related_name='template')
+
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('core:template_studio_edit', args=[self.category_id])
     
     LOGIC_CHOICES = [
         ('generic', _('Allgemein (Standard)')),
@@ -383,6 +398,10 @@ class BucketList(models.Model):
     def __str__(self):
         return self.title
 
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('core:list_detail', args=[self.id])
+
     @property
     def has_icon_in_title(self):
         if not self.title:
@@ -509,6 +528,11 @@ class ListItem(models.Model):
 
     def __str__(self):
         return self.title
+
+    def get_absolute_url(self):
+        from django.urls import reverse
+        base = reverse('core:list_detail', args=[self.bucket_list_id])
+        return f"{base}?open_item={self.id}#item-{self.id}"
 
     def save(self, *args, **kwargs):
         # Synchronize and parse amount/unit fields
@@ -797,6 +821,10 @@ class WorkoutSessionLog(models.Model):
     def __str__(self):
         return f"{self.bucket_list.title} am {self.date.strftime('%d.%m.%Y')}"
 
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('core:list_detail', args=[self.bucket_list_id])
+
 class WorkoutActivityLog(models.Model):
     session = models.ForeignKey(WorkoutSessionLog, on_delete=models.CASCADE, related_name='activities')
     title = models.CharField(max_length=255)
@@ -906,6 +934,10 @@ class WeightLog(models.Model):
     def __str__(self):
         return f"{self.date}: {self.weight} kg ({self.bucket_list.title})"
 
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('core:list_detail', args=[self.bucket_list_id])
+
 
 class NutritionMealLog(models.Model):
     MEAL_CHOICES = [
@@ -935,4 +967,8 @@ class NutritionMealLog(models.Model):
 
     def __str__(self):
         return f"{self.date} [{self.get_meal_type_display()}]: {self.title} ({self.calories} kcal)"
+
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('core:list_detail', args=[self.bucket_list_id])
 

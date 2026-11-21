@@ -232,9 +232,10 @@ EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default=env('EMAIL_HOST_USER', default='Buckezz <noreply@buckezz.app>'))
 
-# Calendar Kit Provider
+# Calendar & Search Kit Providers
 CAL_KIT_EVENT_PROVIDERS = ['core.calendar_provider.get_buckezz_calendar_events']
 CAL_KIT_MOVE_HANDLERS = ['core.calendar_provider.move_buckezz_calendar_event']
+DOMAIN_SEARCH_PROVIDERS = ['core.search_provider.search_buckezz']
 
 # Design Studio & Baukasten Navigation
 OPS_GITHUB_REPO = "bzaiser/buckezz-next"

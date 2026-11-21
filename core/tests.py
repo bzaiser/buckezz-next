@@ -833,3 +833,21 @@ class BuckezzRegressionTests(TestCase):
         self.client.force_login(viewer)
         viewer_html = self.client.get(reverse('core:list_detail', args=[bucket.id])).content.decode('utf-8')
         self.assertIn('#9333ea', viewer_html)  # domain_kit.Role custom_color
+
+        # 4. Global search links ListItem ("Barolo") directly to the list view, NEVER to /admin/
+        from domain_kit.models import DomainModuleSettings
+        mod_cfg = DomainModuleSettings.get_solo()
+        mod_cfg.enable_global_search = True
+        mod_cfg.save()
+
+        self.client.force_login(owner)
+        wein_list = BucketList.objects.create(title='Weinliste', category=cat, owner=owner)
+        barolo = ListItem.objects.create(bucket_list=wein_list, title='Barolo Riserva 2018', brand='Marchesi')
+
+        search_resp = self.client.get('/domain/search/?q=Barolo')
+        self.assertEqual(search_resp.status_code, 200)
+        search_html = search_resp.content.decode('utf-8')
+        expected_url = f"{reverse('core:list_detail', args=[wein_list.id])}?open_item={barolo.id}#item-{barolo.id}"
+        self.assertIn(expected_url, search_html)
+        self.assertNotIn('/admin/core/listitem/', search_html)
+        self.assertIn('In Liste öffnen', search_html)

@@ -1753,6 +1753,19 @@ document.addEventListener('alpine:init', () => {
                 btn.style.opacity = '1';
             });
     };
+
+    // Deep-link from global search (?open_item=<id> or #item-<id>): expand details, scroll & highlight
+    document.addEventListener('DOMContentLoaded', function() {
+        const params = new URLSearchParams(window.location.search);
+        const openId = params.get('open_item') || (window.location.hash.startsWith('#item-') ? window.location.hash.slice(6) : '');
+        if (!openId) return;
+        const targetEl = document.getElementById('item-' + openId);
+        if (!targetEl) return;
+        const detailsParent = targetEl.closest('details');
+        if (detailsParent) detailsParent.open = true;
+        targetEl.classList.add('border', 'border-2', 'border-primary', 'rounded-3');
+        setTimeout(() => targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
+    });
 </script>
 
 {% endblock %}
