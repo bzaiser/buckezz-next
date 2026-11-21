@@ -17,7 +17,21 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        from core.router import get_active_tenant, set_active_tenant
+
         db_alias = options.get("database") or "default"
+        prev_tenant = get_active_tenant()
+        if db_alias.startswith("tenant_"):
+            set_active_tenant(db_alias[len("tenant_"):])
+        else:
+            set_active_tenant(None)
+
+        try:
+            self._run_sync(db_alias)
+        finally:
+            set_active_tenant(prev_tenant)
+
+    def _run_sync(self, db_alias):
         self.stdout.write(f"🔄 Starte Stammdaten-Synchronisation für Datenbank '{db_alias}'...")
 
         # 1. Standard-Stammdaten sicherstellen
