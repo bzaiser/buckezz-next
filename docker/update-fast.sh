@@ -12,6 +12,9 @@ echo "⚡ Starte FAST Update Prozess (Kein Rebuild)..."
 # Move to the project root directory
 cd "$ROOT_DIR"
 
+# Discard local runtime file modifications before pull
+git checkout -- buckezz_project/settings.py buckezz_project/urls.py 2>/dev/null || true
+
 # Pull new changes from git
 echo "⏬ Pulling from git repository..."
 git pull origin $(git rev-parse --abbrev-ref HEAD)
