@@ -308,7 +308,7 @@ class ListItem(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     amount = models.CharField(max_length=100, null=True, blank=True)
     amount_value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    unit = models.ForeignKey(Unit, on_delete=models.SET_NULL, null=True, blank=True, related_name='items')
+    unit = models.ForeignKey('domain_kit.Unit', on_delete=models.SET_NULL, null=True, blank=True, related_name='items')
     brand = models.CharField(max_length=255, null=True, blank=True)
     shop = models.CharField(max_length=255, null=True, blank=True)
     url = models.URLField(max_length=1000, null=True, blank=True)
@@ -406,7 +406,7 @@ class ListItem(models.Model):
                     self.amount_value = Decimal(num_str)
                     unit_clean = unit_str.strip().lower()
                     if unit_clean:
-                        from core.models import Unit
+                        from domain_kit.models import Unit as DomainUnit
                         from django.utils.text import slugify
                         slug_mapping = {
                             'stk': 'stk', 'stk.': 'stk', 'stück': 'stk', 'stueck': 'stk', 'x': 'stk',
@@ -417,10 +417,10 @@ class ListItem(models.Model):
                             'm': 'm', 'meter': 'm',
                             'cm': 'cm', 'zentimeter': 'cm',
                         }
-                        unit_slug = slug_mapping.get(unit_clean, slugify(unit_clean)[:50])
+                        unit_slug = slug_mapping.get(unit_clean, slugify(unit_clean)[:20])
                         
                         name_mapping = {
-                            'stk': 'stk.',
+                            'stk': 'Stk.',
                             'flaschen': 'Fl.',
                             'l': 'l',
                             'g': 'g',
@@ -431,10 +431,21 @@ class ListItem(models.Model):
                         unit_name = name_mapping.get(unit_slug, unit_str.strip())
                         
                         db_alias = self._state.db or 'default'
-                        unit_obj, _ = Unit.objects.using(db_alias).get_or_create(
-                            slug=unit_slug,
-                            defaults={'name': unit_name or unit_clean}
+                        unit_obj = (
+                            DomainUnit.objects.using(db_alias)
+                            .filter(
+                                models.Q(symbol__iexact=unit_slug)
+                                | models.Q(name__iexact=unit_name or unit_clean)
+                                | models.Q(symbol__iexact=unit_clean)
+                                | models.Q(name__iexact=unit_clean)
+                            )
+                            .first()
                         )
+                        if not unit_obj:
+                            unit_obj, _ = DomainUnit.objects.using(db_alias).get_or_create(
+                                symbol=(unit_slug or unit_clean)[:20],
+                                defaults={'name': unit_name or unit_clean, 'dimension': 'count', 'position': 100}
+                            )
                         self.unit = unit_obj
                 except (InvalidOperation, ValueError, Exception):
                     pass
@@ -500,14 +511,34 @@ class ListItem(models.Model):
     @property
     def effective_status_info(self):
         """Return matching custom status dict or built-in waiting/overdue display info."""
+        info = None
         tpl = getattr(getattr(self.bucket_list, 'category', None), 'template', None)
         if tpl and tpl.allowed_statuses_json:
             for st in tpl.get_effective_statuses():
                 if st.get('key') == self.status:
-                    return st
-        if self.status in ('waiting', 'overdue'):
-            return {'key': self.status, 'label': self.get_status_display(), 'completes': False}
-        return None
+                    info = dict(st)
+                    break
+        if not info and self.status in ('waiting', 'overdue'):
+            info = {'key': self.status, 'label': self.get_status_display(), 'completes': False}
+
+        # Enrich with live domain_kit Status styling if available
+        try:
+            from domain_kit.models import Status as DomainStatus
+            db_alias = self._state.db or 'default'
+            label_query = (info.get('label') if info else None) or self.status
+            ds = DomainStatus.objects.using(db_alias).filter(
+                models.Q(name__iexact=label_query) | models.Q(name__iexact=self.status)
+            ).first()
+            if ds:
+                if not info:
+                    info = {'key': self.status, 'label': ds.name, 'completes': ds.is_final}
+                info['color_state'] = ds.color_state
+                info['custom_color'] = ds.custom_color
+                info['icon'] = ds.icon
+                info['badge_style'] = ds.badge_style
+        except Exception:
+            pass
+        return info
 
     class Meta:
         ordering = ['order', '-created_at']

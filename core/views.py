@@ -922,8 +922,8 @@ class GetItemFormView(View):
                 gift_status = gift_role.role
                 gift_person = gift_role.person
         
-        from core.models import Unit
-        units = Unit.objects.all()
+        from domain_kit.models import Unit
+        units = Unit.objects.all().order_by('position', 'name')
         people = Person.objects.all()
         raw_cf = getattr(bucket.category.template, 'custom_fields_json', None) or []
         item_cf_data = (item.custom_data_json if item and isinstance(item.custom_data_json, dict) else {})
@@ -2432,6 +2432,45 @@ class TemplateStudioBuilderView(StaffRequiredMixin, View):
         {"key": "fulfilled", "label": "Wunsch erfüllt", "completes": True},
     ]
 
+    def get_status_presets(self):
+        try:
+            from domain_kit.models import Status as DomainStatus
+            presets = []
+            for st in DomainStatus.objects.all().order_by('position', 'name'):
+                from django.utils.text import slugify
+                key = slugify(st.name).replace('-', '_')[:20]
+                presets.append({
+                    "key": key,
+                    "label": st.name,
+                    "completes": bool(st.is_final),
+                    "color_state": st.color_state,
+                    "icon": st.icon,
+                })
+            if presets:
+                return presets
+        except Exception:
+            pass
+        return self.STATUS_PRESETS
+
+    def get_role_presets(self):
+        try:
+            from domain_kit.models import Role as DomainRole
+            presets = []
+            for r in DomainRole.objects.all().order_by('position', 'name'):
+                from django.utils.text import slugify
+                key = slugify(r.name).replace('-', '_')[:20]
+                presets.append({
+                    "key": key,
+                    "label": r.name,
+                    "completes": False,
+                    "color_state": r.color_state,
+                })
+            if presets:
+                return presets
+        except Exception:
+            pass
+        return self.ROLE_PRESETS
+
     def _build_context(self, category=None):
         tpl = getattr(category, 'template', None) if category else None
         active_keys = [
@@ -2452,8 +2491,8 @@ class TemplateStudioBuilderView(StaffRequiredMixin, View):
             'tpl': tpl,
             'field_defs': TEMPLATE_STUDIO_FIELDS,
             'active_keys': active_keys,
-            'status_presets': self.STATUS_PRESETS,
-            'role_presets': self.ROLE_PRESETS,
+            'status_presets': self.get_status_presets(),
+            'role_presets': self.get_role_presets(),
             'group_by_choices': ListTemplate.GROUP_BY_CHOICES,
             'allowed_statuses_json': json.dumps(allowed_statuses),
             'allowed_roles_json': json.dumps(allowed_roles),
