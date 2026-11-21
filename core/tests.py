@@ -645,7 +645,10 @@ class BuckezzRegressionTests(TestCase):
             by_type.setdefault(et, []).append(e)
             # Never leak raw 'bi-...' class names into visible titles
             self.assertNotIn('bi-book', e['title'])
-            self.assertFalse(e.get('editable', True))
+            if et == 'tracker':
+                self.assertFalse(e.get('editable', True))
+            else:
+                self.assertTrue(e.get('editable', False))
             self.assertTrue((e.get('extendedProps') or {}).get('read_only'))
 
         self.assertEqual(len(by_type.get('end', [])), 1)
@@ -656,6 +659,59 @@ class BuckezzRegressionTests(TestCase):
         self.assertEqual(len(by_type.get('range', [])), 1)
         self.assertEqual(len(by_type.get('start', [])), 1)
         self.assertEqual(len(by_type.get('tracker', [])), 2)
+
+        # Drag & Drop moves on To-Do end_date, reminder_at, custom_date, and range resize
+        import json as _json
+        todo_item = ListItem.objects.get(title='Steuer abgeben')
+        todo_item.reminder_sent = True
+        todo_item.save(update_fields=['reminder_sent'])
+
+        mv_end = self.client.post(
+            reverse('cal_kit:move_event', args=[by_type['end'][0]['id']]),
+            _json.dumps({'start': '2026-11-28T16:30:00+01:00'}),
+            content_type='application/json',
+        )
+        self.assertEqual(mv_end.status_code, 200)
+        mv_rem = self.client.post(
+            reverse('cal_kit:move_event', args=[by_type['reminder'][0]['id']]),
+            _json.dumps({'start': '2026-11-27T08:00:00+01:00'}),
+            content_type='application/json',
+        )
+        self.assertEqual(mv_rem.status_code, 200)
+        mv_cf = self.client.post(
+            reverse('cal_kit:move_event', args=[by_type['custom_date'][0]['id']]),
+            _json.dumps({'start': '2026-11-26T00:00:00Z', 'startStr': '2026-11-26', 'allDay': True}),
+            content_type='application/json',
+        )
+        self.assertEqual(mv_cf.status_code, 200)
+        todo_item.refresh_from_db()
+        self.assertEqual(timezone.localtime(todo_item.end_date).day, 28)
+        self.assertEqual(timezone.localtime(todo_item.reminder_at).day, 27)
+        self.assertFalse(todo_item.reminder_sent)
+        self.assertEqual(todo_item.custom_data_json['due_check'], '2026-11-26')
+
+        mv_range = self.client.post(
+            reverse('cal_kit:move_event', args=[by_type['range'][0]['id']]),
+            _json.dumps({'start': '2026-11-21T19:00:00+01:00', 'end': '2026-11-21T22:00:00+01:00'}),
+            content_type='application/json',
+        )
+        self.assertEqual(mv_range.status_code, 200)
+        buchclub = ListItem.objects.get(title='Buchclub')
+        self.assertEqual(timezone.localtime(buchclub.start_date).day, 21)
+        self.assertEqual(timezone.localtime(buchclub.end_date).hour, 22)
+
+        # Unauthorized user cannot move another user's list item
+        intruder = User.objects.create_user(username='cal_intruder', password='secret')
+        self.client.force_login(intruder)
+        mv_denied = self.client.post(
+            reverse('cal_kit:move_event', args=[by_type['end'][0]['id']]),
+            _json.dumps({'start': '2026-11-30T10:00:00+01:00'}),
+            content_type='application/json',
+        )
+        self.assertEqual(mv_denied.status_code, 400)
+        todo_item.refresh_from_db()
+        self.assertEqual(timezone.localtime(todo_item.end_date).day, 28)
+        self.client.force_login(owner)
 
         # iCal feed includes To-Do deadline, VALARM reminder, range, start, and custom date
         ics = self.client.get(reverse('cal_kit:ical_feed')).content.decode('utf-8')

@@ -130,7 +130,9 @@ def get_buckezz_calendar_events(request, window_start, window_end):
                 "start": _iso_local(item.start_date),
                 "end": _iso_local(item.end_date),
                 "allDay": False,
-                "editable": False,
+                "editable": True,
+                "startEditable": True,
+                "durationEditable": True,
                 "url": list_url,
                 "backgroundColor": "var(--app-primary, #6366f1)",
                 "borderColor": "var(--app-primary, #6366f1)",
@@ -150,7 +152,9 @@ def get_buckezz_calendar_events(request, window_start, window_end):
                     "title": f"{item.title} (Start)",
                     "start": _iso_local(item.start_date),
                     "allDay": False,
-                    "editable": False,
+                    "editable": True,
+                    "startEditable": True,
+                    "durationEditable": False,
                     "url": list_url,
                     "backgroundColor": "var(--theme-state-2, #3b82f6)",
                     "borderColor": "var(--theme-state-2, #3b82f6)",
@@ -170,7 +174,9 @@ def get_buckezz_calendar_events(request, window_start, window_end):
                     "title": item.title,
                     "start": _iso_local(item.end_date),
                     "allDay": False,
-                    "editable": False,
+                    "editable": True,
+                    "startEditable": True,
+                    "durationEditable": False,
                     "url": list_url,
                     "backgroundColor": color,
                     "borderColor": color,
@@ -190,7 +196,9 @@ def get_buckezz_calendar_events(request, window_start, window_end):
                 "title": f"{item.title} (Erinnerung)",
                 "start": _iso_local(item.reminder_at),
                 "allDay": False,
-                "editable": False,
+                "editable": True,
+                "startEditable": True,
+                "durationEditable": False,
                 "url": list_url,
                 "backgroundColor": "var(--theme-state-3, #f59e0b)",
                 "borderColor": "var(--theme-state-3, #f59e0b)",
@@ -251,7 +259,9 @@ def get_buckezz_calendar_events(request, window_start, window_end):
                 "title": f"{item.title} ({cf_label})",
                 "start": date_str,
                 "allDay": True,
-                "editable": False,
+                "editable": True,
+                "startEditable": True,
+                "durationEditable": False,
                 "url": list_url,
                 "backgroundColor": "var(--theme-state-6, #8b5cf6)",
                 "borderColor": "var(--theme-state-6, #8b5cf6)",
@@ -266,6 +276,95 @@ def get_buckezz_calendar_events(request, window_start, window_end):
             })
 
     return events
+
+
+def _parse_iso_dt(raw):
+    if not raw:
+        return None
+    val = str(raw).strip().replace("Z", "+00:00")
+    if len(val) == 10:
+        val += "T00:00:00"
+    try:
+        dt = datetime.fromisoformat(val)
+    except (ValueError, TypeError):
+        return None
+    if timezone.is_naive(dt):
+        dt = timezone.make_aware(dt)
+    return dt
+
+
+def move_buckezz_calendar_event(request, event_id, payload):
+    """
+    Move/Resize-Handler für cal_kit (`CAL_KIT_MOVE_HANDLERS`):
+    Aktualisiert start_date, end_date, reminder_at oder benutzerdefinierte
+    Datumsfelder eines Buckezz ListItem per Drag & Drop im Kalender.
+    """
+    user = getattr(request, "user", None)
+    if not user or not user.is_authenticated:
+        return False
+    if not isinstance(event_id, str) or not event_id.startswith("buckezz-"):
+        return False
+
+    from core.models import ListItem
+
+    new_start = _parse_iso_dt(payload.get("start"))
+    new_end = _parse_iso_dt(payload.get("end"))
+    start_str = str(payload.get("startStr") or "").strip()
+
+    # Format: buckezz-cf-<item_id>-<field_key>
+    m_cf = re.match(r"^buckezz-cf-(\d+)-(.+)$", event_id)
+    if m_cf:
+        item_id, cf_key = int(m_cf.group(1)), m_cf.group(2)
+        item = ListItem.objects.filter(pk=item_id, bucket_list__in=_get_user_lists(user)).first()
+        if not item:
+            return False
+        date_val = start_str[:10] if len(start_str) >= 10 and _ISO_DATE_RE.match(start_str[:10]) else None
+        if not date_val and new_start:
+            date_val = timezone.localtime(new_start).date().isoformat()
+        if not date_val:
+            return False
+        cf_data = dict(item.custom_data_json) if isinstance(item.custom_data_json, dict) else {}
+        cf_data[cf_key] = date_val
+        item.custom_data_json = cf_data
+        item.updated_by = user
+        item.save(update_fields=["custom_data_json", "updated_by", "updated_at"])
+        return True
+
+    # Format: buckezz-(range|start|end|rem)-<item_id>
+    m = re.match(r"^buckezz-(range|start|end|rem)-(\d+)$", event_id)
+    if not m or not new_start:
+        return False
+
+    kind, item_id = m.group(1), int(m.group(2))
+    item = ListItem.objects.filter(pk=item_id, bucket_list__in=_get_user_lists(user)).first()
+    if not item:
+        return False
+
+    if kind == "range":
+        old_duration = (item.end_date - item.start_date) if (item.start_date and item.end_date and item.end_date >= item.start_date) else timedelta(hours=1)
+        item.start_date = new_start
+        item.end_date = new_end if (new_end and new_end >= new_start) else (new_start + old_duration)
+        item.updated_by = user
+        item.save(update_fields=["start_date", "end_date", "updated_by", "updated_at"])
+        return True
+    if kind == "start":
+        item.start_date = new_start
+        item.updated_by = user
+        item.save(update_fields=["start_date", "updated_by", "updated_at"])
+        return True
+    if kind == "end":
+        item.end_date = new_start
+        item.updated_by = user
+        item.save(update_fields=["end_date", "updated_by", "updated_at"])
+        return True
+    if kind == "rem":
+        item.reminder_at = new_start
+        item.reminder_sent = False
+        item.updated_by = user
+        item.save(update_fields=["reminder_at", "reminder_sent", "updated_by", "updated_at"])
+        return True
+
+    return False
 
 
 def _fmt_ics_utc(dt):

@@ -234,6 +234,7 @@ DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default=env('EMAIL_HOST_USER', de
 
 # Calendar Kit Provider
 CAL_KIT_EVENT_PROVIDERS = ['core.calendar_provider.get_buckezz_calendar_events']
+CAL_KIT_MOVE_HANDLERS = ['core.calendar_provider.move_buckezz_calendar_event']
 
 # Design Studio & Baukasten Navigation
 OPS_GITHUB_REPO = "bzaiser/buckezz-next"
