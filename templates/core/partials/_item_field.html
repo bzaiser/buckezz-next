@@ -1,0 +1,125 @@
+{% if field_key == 'use_milestone' and bucket.category.template.use_milestone %}
+    {% if item.target_milestone and not item.is_completed %}
+        <span class="badge text-bg-primary">{{ item.get_target_milestone_display }}</span>
+    {% elif item.is_completed %}
+        <span class="badge text-bg-success"><i class="bi bi-trophy me-1"></i>{{ item.completed_at|date:"d.m.Y" }}</span>
+    {% endif %}
+{% elif field_key == 'use_brand' and item.brand %}
+    <span class="badge text-bg-secondary">{{ item.brand }}</span>
+{% elif field_key == 'use_shop' and bucket.category.template.use_shop and item.shop %}
+    <span class="badge bg-body-secondary text-body border"><i class="bi bi-shop me-1"></i>{{ item.shop }}</span>
+{% elif field_key == 'use_location' and bucket.category.template.use_location and item.location %}
+    <span class="badge bg-body-secondary text-body border"><i class="bi bi-geo-alt me-1"></i>{{ item.location }}</span>
+{% elif field_key == 'use_notes' and item.notes %}
+    <span class="small text-muted text-break">{{ item.notes|truncatechars:140 }}</span>
+{% elif field_key == 'use_url' and item.url %}
+    <a href="{{ item.url }}" target="_blank" class="btn btn-outline-primary btn-sm py-0 px-2">
+        <i class="bi bi-box-arrow-up-right me-1"></i>Link öffnen
+    </a>
+{% elif field_key == 'use_start_date' and bucket.category.template.use_start_date and item.start_date %}
+    <span class="badge text-bg-secondary"><i class="bi bi-calendar-event me-1"></i>Start: {{ item.start_date|date:"d.m.Y H:i" }}</span>
+{% elif field_key == 'use_end_date' and bucket.category.template.use_end_date and item.end_date %}
+    <span class="badge text-bg-secondary"><i class="bi bi-flag me-1"></i>Ende: {{ item.end_date|date:"d.m.Y H:i" }}</span>
+{% elif field_key == 'use_reminder' and bucket.category.template.use_reminder and item.reminder_at %}
+    {% if item.reminder_sent %}
+    <span class="badge text-bg-success" title="Erinnerungs-E-Mail wurde versendet">
+        <i class="bi bi-envelope-check me-1"></i>{{ item.reminder_at|date:"d.m.Y H:i" }} (gesendet)
+    </span>
+    {% else %}
+    <span class="badge text-bg-warning" title="Erinnerung geplant">
+        <i class="bi bi-alarm me-1"></i>{{ item.reminder_at|date:"d.m.Y H:i" }}
+    </span>
+    {% endif %}
+{% elif field_key == 'use_image' and bucket.category.template.use_image %}
+    {% if item.image or item.images.exists %}
+    <div class="d-flex flex-wrap gap-2">
+        {% if item.image %}
+        <a href="{{ item.image.url }}" target="_blank">
+            <img src="{{ item.image.url }}" alt="{{ item.title }}" class="img-thumbnail rounded-3" width="84">
+        </a>
+        {% endif %}
+        {% for img in item.images.all %}
+        <a href="{{ img.image.url }}" target="_blank">
+            <img src="{{ img.image.url }}" alt="{{ item.title }} ({{ forloop.counter }})" class="img-thumbnail rounded-3" width="84">
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+{% elif field_key == 'use_subchecklist' or field_key == 'use_subchecklist_photos' %}
+    {% if item.subchecklist_json %}
+        {% if bucket.category.template.use_subchecklist or bucket.category.template.use_subchecklist_photos %}
+        <div class="w-100 ps-2 border-start">
+            <div class="small fw-semibold text-muted mb-1"><i class="bi bi-list-check me-1"></i>Einzelpunkte:</div>
+            <div class="d-flex flex-column gap-1">
+                {% for sub in item.subchecklist_json %}
+                <div class="d-flex align-items-center gap-2">
+                    <label class="form-check small mb-0">
+                        <input type="checkbox" class="form-check-input" {% if sub.done %}checked{% endif %} {% if not can_edit %}disabled{% endif %}
+                               {% if can_edit %}hx-post="{% url 'core:toggle_subitem' item.id forloop.counter0 %}" hx-target="#item-list" hx-swap="innerHTML"{% endif %}>
+                        <span class="form-check-label {% if sub.done %}text-decoration-line-through text-muted{% endif %}">{{ sub.title }}</span>
+                    </label>
+                    {% if sub.image %}
+                    <a href="{{ sub.image }}" target="_blank"><img src="{{ sub.image }}" alt="{{ sub.title }}" class="img-thumbnail rounded-2" width="44"></a>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    {% endif %}
+{% elif field_key == 'use_persons' and item.person_roles.exists and not is_beneficiary %}
+    <div class="d-flex flex-wrap align-items-center gap-1">
+        {% for role in item.person_roles.all %}
+            <span class="badge text-bg-secondary">{{ role.person.name }} ({{ role.get_role_display }})</span>
+        {% endfor %}
+    </div>
+{% elif field_key == 'use_amount' and bucket.category.template.use_amount %}
+    <div class="d-flex align-items-center gap-1">
+        {% if item.amount_value is not None %}
+            {% if can_edit and not item.is_completed %}
+            <div class="btn-group btn-group-sm" role="group">
+                <button type="button" class="btn btn-outline-secondary" hx-post="{% url 'core:adjust_amount' item.id %}" hx-vals='{"action": "decrement"}' hx-target="#item-list" hx-swap="innerHTML">-</button>
+                <span class="btn btn-outline-secondary disabled fw-bold">{{ item.amount_value|floatformat:"-2" }}</span>
+                <button type="button" class="btn btn-outline-secondary" hx-post="{% url 'core:adjust_amount' item.id %}" hx-vals='{"action": "increment"}' hx-target="#item-list" hx-swap="innerHTML">+</button>
+            </div>
+            {% else %}
+            <span class="badge text-bg-secondary">{{ item.amount_value|floatformat:"-2" }}</span>
+            {% endif %}
+            {% if item.unit %}<span class="small text-muted">{{ item.unit.name }}</span>{% endif %}
+        {% else %}
+            <span class="badge text-bg-secondary">{{ item.amount|default:"-" }}</span>
+        {% endif %}
+    </div>
+{% elif field_key == 'use_price' and bucket.category.template.use_price and item.price %}
+    <span class="badge bg-body-secondary text-body border">{{ item.price }} €</span>
+{% elif field_key == 'use_rating' and bucket.category.template.use_rating %}
+    <div class="d-flex align-items-center gap-1">
+        {% if can_edit and not item.is_completed %}
+            {% for i in "12345" %}
+            <button type="button" class="btn btn-sm p-0 border-0 text-warning" hx-post="{% url 'core:adjust_rating' item.id %}" hx-vals='{"rating": "{{ forloop.counter }}"}' hx-target="#item-list" hx-swap="innerHTML">
+                <i class="bi {% if item.rating and forloop.counter <= item.rating %}bi-star-fill{% else %}bi-star{% endif %}"></i>
+            </button>
+            {% endfor %}
+        {% else %}
+            {% for i in "12345" %}
+                <i class="bi {% if item.rating and forloop.counter <= item.rating %}bi-star-fill text-warning{% else %}bi-star text-muted{% endif %} small"></i>
+            {% endfor %}
+        {% endif %}
+    </div>
+{% else %}
+    {% for cf in custom_display %}
+        {% with cf_id="cf:"|add:cf.key %}
+        {% if cf_id == field_key and cf.show_on_card %}
+            {% if cf.type == 'url' %}
+                <a href="{{ cf.value }}" target="_blank" class="badge text-bg-primary text-decoration-none"><i class="bi bi-link-45deg me-1"></i>{{ cf.label }}</a>
+            {% elif cf.type == 'image' %}
+                <a href="{{ cf.value }}" target="_blank" title="{{ cf.label }}"><img src="{{ cf.value }}" alt="{{ cf.label }}" class="img-thumbnail rounded-2" width="44"></a>
+            {% elif cf.type == 'rating' %}
+                <span class="badge text-bg-warning text-dark"><i class="bi bi-star-fill me-1"></i>{{ cf.label }}: {{ cf.value }}/5</span>
+            {% else %}
+                <span class="badge bg-body-secondary text-body border">{{ cf.label }}: <strong>{{ cf.value }}</strong></span>
+            {% endif %}
+        {% endif %}
+        {% endwith %}
+    {% endfor %}
+{% endif %}

@@ -2491,7 +2491,7 @@ class TemplateStudioBuilderView(StaffRequiredMixin, View):
         ]
         allowed_roles = tpl.allowed_roles_json if (tpl and isinstance(tpl.allowed_roles_json, list)) else []
         logic_rules = tpl.logic_rules_json if (tpl and isinstance(tpl.logic_rules_json, dict)) else {}
-        ui_style = tpl.get_ui_style() if tpl else {'layout_mode': 'row', 'card_width': '1/2', 'density': 'normal', 'show_creator': True, 'genre': ''}
+        ui_style = tpl.get_ui_style() if tpl else {'layout_mode': 'row', 'card_width': '1/2', 'density': 'normal', 'show_creator': True, 'genre': '', 'card_layout': None}
         custom_fields = tpl.custom_fields_json if (tpl and isinstance(tpl.custom_fields_json, list)) else []
         summary_rule = tpl.summary_rule_json if (tpl and isinstance(tpl.summary_rule_json, dict)) else {}
         recurrence = tpl.recurrence_json if (tpl and isinstance(tpl.recurrence_json, dict)) else {}
@@ -2618,6 +2618,8 @@ class TemplateStudioBuilderView(StaffRequiredMixin, View):
         cf_labels = request.POST.getlist('cf_label')
         cf_types = request.POST.getlist('cf_type')
         cf_options = request.POST.getlist('cf_options')
+        cf_zones = request.POST.getlist('cf_zone')
+        cf_show_cards = request.POST.getlist('cf_show_card')
         custom_fields = []
         allowed_cf_types = ('text', 'textarea', 'number', 'currency', 'date', 'url', 'image', 'select', 'radio', 'multiselect', 'checkbox', 'rating', 'color')
         for idx, lbl in enumerate(cf_labels):
@@ -2628,7 +2630,18 @@ class TemplateStudioBuilderView(StaffRequiredMixin, View):
             key_clean = slugify(raw_key or lbl_clean).replace('-', '_')[:30] or f"field_{idx}"
             ftype = cf_types[idx] if idx < len(cf_types) and cf_types[idx] in allowed_cf_types else 'text'
             opts = cf_options[idx].strip() if idx < len(cf_options) else ''
-            custom_fields.append({'key': key_clean, 'label': lbl_clean, 'type': ftype, 'options': opts})
+            zone = cf_zones[idx].strip() if idx < len(cf_zones) and cf_zones[idx].strip() in ('header', 'body', 'footer', 'hidden') else 'body'
+            show_on_card = (cf_show_cards[idx] != '0') if idx < len(cf_show_cards) else (zone != 'hidden')
+            if not show_on_card:
+                zone = 'hidden'
+            custom_fields.append({
+                'key': key_clean,
+                'label': lbl_clean,
+                'type': ftype,
+                'options': opts,
+                'zone': zone,
+                'show_on_card': show_on_card,
+            })
         tpl.custom_fields_json = custom_fields
 
         # Save group_by, summary_rule_json, recurrence_json
@@ -2669,12 +2682,25 @@ class TemplateStudioBuilderView(StaffRequiredMixin, View):
         genre = (request.POST.get('ui_genre') or '').strip()
         if not is_valid_genre(genre):
             genre = ''
+        card_layout = None
+        raw_card_layout = (request.POST.get('ui_card_layout_json') or '').strip()
+        if raw_card_layout:
+            try:
+                parsed_layout = json.loads(raw_card_layout)
+                if isinstance(parsed_layout, dict):
+                    card_layout = {
+                        z: [str(x).strip() for x in (parsed_layout.get(z) or []) if str(x).strip()]
+                        for z in ('header', 'body', 'footer', 'hidden')
+                    }
+            except (ValueError, TypeError):
+                card_layout = None
         tpl.ui_style_json = {
             'layout_mode': layout_mode,
             'card_width': card_width,
             'density': density,
             'show_creator': request.POST.get('ui_show_creator') == 'on',
             'genre': genre,
+            'card_layout': card_layout,
         }
         tpl.save()
 

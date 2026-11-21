@@ -331,6 +331,55 @@ class BuckezzRegressionTests(TestCase):
         self.assertContains(detail_resp, 'data-genre="scifi"')
         self.assertNotContains(detail_resp, 'Erstellt von ui_admin')
 
+    def test_card_layout_and_hidden_custom_fields(self):
+        import json
+        staff = User.objects.create_user(username='layout_admin', password='secret', is_staff=True)
+        self.client.force_login(staff)
+
+        card_layout = {
+            'header': ['use_brand'],
+            'body': ['cf:autor'],
+            'footer': ['use_price'],
+            'hidden': ['cf:intern'],
+        }
+        resp = self.client.post(reverse('core:template_studio_create'), {
+            'name': 'Bücher-Layout',
+            'icon': '📚',
+            'logic_type': 'generic',
+            'use_brand': 'on',
+            'use_price': 'on',
+            'cf_key': ['autor', 'intern'],
+            'cf_label': ['Autor', 'Interne Notiz'],
+            'cf_type': ['text', 'text'],
+            'cf_options': ['', ''],
+            'cf_zone': ['body', 'hidden'],
+            'cf_show_card': ['1', '0'],
+            'ui_layout_mode': 'cards',
+            'ui_card_layout_json': json.dumps(card_layout),
+        })
+        self.assertRedirects(resp, reverse('core:template_studio'))
+
+        cat = ListCategory.objects.get(name='Bücher-Layout')
+        self.assertEqual(cat.template.get_ui_style()['card_layout'], card_layout)
+        self.assertEqual(cat.template.custom_fields_json[0]['zone'], 'body')
+        self.assertTrue(cat.template.custom_fields_json[0]['show_on_card'])
+        self.assertFalse(cat.template.custom_fields_json[1]['show_on_card'])
+
+        bucket = BucketList.objects.create(title='Leseliste', category=cat, owner=staff)
+        ListItem.objects.create(
+            bucket_list=bucket,
+            title='Der Schwarm',
+            brand='Heyne',
+            price=14.90,
+            custom_data_json={'autor': 'Frank Schätzing', 'intern': 'Geheimcode 123'},
+            created_by=staff,
+        )
+        detail_resp = self.client.get(reverse('core:list_detail', args=[bucket.id]))
+        self.assertEqual(detail_resp.status_code, 200)
+        self.assertContains(detail_resp, 'Heyne')
+        self.assertContains(detail_resp, 'Frank Schätzing')
+        self.assertNotContains(detail_resp, 'Geheimcode 123')
+
     def test_custom_person_role_completes_item(self):
         from core.models import Person, ItemPersonRole
         staff = User.objects.create_user(username='custom_role_admin', password='secret', is_staff=True)

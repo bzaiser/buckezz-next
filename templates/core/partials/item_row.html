@@ -1,4 +1,4 @@
-{% with ui=ui|default:bucket.category.template.get_ui_style %}
+{% with ui=ui|default:bucket.category.template.get_ui_style custom_display=item.get_custom_field_display %}
 {% if ui.layout_mode == 'cards' %}
 <div class="{% if ui.card_width == '1/4' %}col-12 col-sm-6 col-lg-3{% elif ui.card_width == '1/2' %}col-12 col-sm-6{% elif ui.card_width == '3/4' %}col-12 col-lg-9{% elif ui.card_width == 'hero' %}col-12{% else %}col-12 col-md-6 col-xl-4{% endif %}" id="item-{{ item.id }}" data-id="{{ item.id }}">
 <div class="card h-100 shadow-sm rounded-4 overflow-hidden">
@@ -32,6 +32,28 @@
         </div>
 
         <div class="flex-grow-1 min-w-0">
+            {% if ui.card_layout %}
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <strong class="text-break {% if item.is_completed %}text-decoration-line-through text-muted{% endif %}">{{ item.title }}</strong>
+                {% with st=item.effective_status_info %}
+                    {% if st %}
+                        <span class="badge {% if st.key == 'overdue' %}text-bg-danger{% elif st.key == 'waiting' %}text-bg-warning{% elif st.completes %}text-bg-success{% else %}text-bg-info{% endif %}">
+                            {{ st.label }}
+                        </span>
+                    {% endif %}
+                {% endwith %}
+                {% for fk in ui.card_layout.header %}
+                    {% include "core/partials/_item_field.html" with field_key=fk %}
+                {% endfor %}
+            </div>
+            {% if ui.card_layout.body %}
+            <div class="d-flex flex-wrap align-items-center gap-1 mt-1">
+                {% for fk in ui.card_layout.body %}
+                    {% include "core/partials/_item_field.html" with field_key=fk %}
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% else %}
             <div class="d-flex flex-wrap align-items-center gap-2">
                 <strong class="text-break {% if item.is_completed %}text-decoration-line-through text-muted{% endif %}">{{ item.title }}</strong>
 
@@ -97,9 +119,10 @@
             </div>
             {% endif %}
 
-            {% if item.get_custom_field_display %}
+            {% if custom_display %}
             <div class="d-flex flex-wrap align-items-center gap-1 mt-1">
-                {% for cf in item.get_custom_field_display %}
+                {% for cf in custom_display %}
+                    {% if cf.show_on_card %}
                     {% if cf.type == 'url' %}
                         <a href="{{ cf.value }}" target="_blank" class="badge text-bg-primary text-decoration-none">
                             <i class="bi bi-link-45deg me-1"></i>{{ cf.label }}
@@ -118,6 +141,7 @@
                         </span>
                     {% else %}
                         <span class="badge bg-body-secondary text-body border">{{ cf.label }}: <strong>{{ cf.value }}</strong></span>
+                    {% endif %}
                     {% endif %}
                 {% endfor %}
             </div>
@@ -276,6 +300,8 @@
             </div>
             {% endif %}
 
+            {% endif %}
+
             {% if ui.show_creator %}
                 {% if item.created_by or item.guest_created_by %}
                 <div class="small text-muted mt-1">
@@ -288,6 +314,11 @@
     </div>
 
     <div class="d-flex align-items-center gap-3 flex-wrap {% if ui.layout_mode == 'cards' or ui.layout_mode == 'stacked' %}justify-content-between border-top pt-2 mt-1{% endif %}">
+        {% if ui.card_layout %}
+            {% for fk in ui.card_layout.footer %}
+                {% include "core/partials/_item_field.html" with field_key=fk %}
+            {% endfor %}
+        {% else %}
         {% if bucket.category.template.use_amount %}
         <div class="d-flex align-items-center gap-1">
             {% if item.amount_value is not None %}
@@ -348,6 +379,7 @@
                 {% endif %}
             {% endif %}
         </div>
+        {% endif %}
         {% endif %}
 
         <div class="btn-group btn-group-sm">

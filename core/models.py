@@ -227,6 +227,7 @@ class ListTemplate(models.Model):
             'density': 'normal',
             'show_creator': True,
             'genre': '',
+            'card_layout': None,
         }
         if isinstance(self.ui_style_json, dict):
             defaults.update(self.ui_style_json)
@@ -506,6 +507,8 @@ class ListItem(models.Model):
                 'label': f.get('label', key),
                 'type': f.get('type', 'text'),
                 'value': val,
+                'show_on_card': f.get('show_on_card', True),
+                'zone': f.get('zone', 'body'),
             })
         return result
 
