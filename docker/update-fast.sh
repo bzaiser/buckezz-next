@@ -29,8 +29,10 @@ echo "📁 Bereite Datenverzeichnis vor..."
 mkdir -p "$ROOT_DIR/data"
 chmod -R 777 "$ROOT_DIR/data"
 
-# Update Baukasten Kits
-echo "📦 Aktualisiere Baukasten-Kits..."
+# Update Baukasten Kits & Requirements
+echo "📦 Installiere/Aktualisiere Pakete aus requirements.txt..."
+docker compose exec -u 0 web pip install --no-cache-dir -r requirements.txt || true
+
 if docker compose exec web python manage.py help ops_auto_update >/dev/null 2>&1; then
     docker compose exec web python manage.py ops_auto_update --force --apply || true
 else
