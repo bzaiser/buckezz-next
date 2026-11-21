@@ -110,17 +110,13 @@ class BuckezzRegressionTests(TestCase):
 
         settings_resp = self.client.get(reverse('core:settings'))
         self.assertEqual(settings_resp.status_code, 200)
+        self.assertNotContains(settings_resp, 'Erweiterte Farbwerte')
 
         post_resp = self.client.post(reverse('core:settings'), {
-            'primary_color': '#00d2ff',
-            'accent_color': '#ffab00',
-            'bg_color': '#0a0e14',
-            'text_color': '#ffffff',
-            'glass_opacity': '0.15',
             'timezone': 'Europe/Berlin',
         })
         self.assertRedirects(post_resp, reverse('core:dashboard'))
-        self.assertEqual(UserSetting.objects.get(user=self.user).primary_color, '#00d2ff')
+        self.assertEqual(UserSetting.objects.get(user=self.user).timezone, 'Europe/Berlin')
 
     def test_healthz_endpoint(self):
         resp = self.client.get('/healthz')

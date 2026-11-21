@@ -1577,15 +1577,14 @@ class ThemeSettingsView(LoginRequiredMixin, View):
 
     def post(self, request):
         settings, _ = UserSetting.objects.get_or_create(user=request.user)
-        settings.primary_color = request.POST.get('primary_color')
-        settings.accent_color = request.POST.get('accent_color')
-        settings.bg_color = request.POST.get('bg_color')
-        settings.text_color = request.POST.get('text_color')
-        settings.input_bg_color = request.POST.get('input_bg_color', '#000000')
-        settings.input_text_color = request.POST.get('input_text_color', '#ffffff')
-        settings.header_bg_color = request.POST.get('header_bg_color', '#543D62')
-        settings.header_text_color = request.POST.get('header_text_color', '#ffffff')
-        settings.glass_opacity = request.POST.get('glass_opacity')
+        for field in (
+            'primary_color', 'accent_color', 'bg_color', 'text_color',
+            'input_bg_color', 'input_text_color', 'header_bg_color', 'header_text_color',
+            'glass_opacity',
+        ):
+            val = request.POST.get(field)
+            if val not in (None, ''):
+                setattr(settings, field, val)
         settings.timezone = request.POST.get('timezone', 'Europe/Berlin')
         settings.alexa_user_id = request.POST.get('alexa_user_id', '').strip() or None
         

@@ -2,19 +2,7 @@
 {% load l10n %}
 
 {% block content %}
-<div class="px-0 px-sm-1 px-md-2 py-2"
-     x-data="{
-        primary: '{{ settings.primary_color|default:"#00d2ff" }}',
-        accent: '{{ settings.accent_color|default:"#ffab00" }}',
-        bg: '{{ settings.bg_color|default:"#0a0e14" }}',
-        text: '{{ settings.text_color|default:"#ffffff" }}',
-        input_bg: '{{ settings.input_bg_color|default:"#000000" }}',
-        input_text: '{{ settings.input_text_color|default:"#ffffff" }}',
-        header_bg: '{{ settings.header_bg_color|default:"#543D62" }}',
-        header_text: '{{ settings.header_text_color|default:"#ffffff" }}',
-        opacity: {{ settings.glass_opacity|default:0.15|unlocalize }},
-        showHelpModal: false
-     }">
+<div class="px-0 px-sm-1 px-md-2 py-2" x-data="{ showHelpModal: false }">
 
     <div class="d-flex justify-content-between align-items-center mb-3">
         <nav aria-label="breadcrumb">
@@ -229,36 +217,6 @@
                                 <label class="form-check-label" for="cfg_completed">Erledigte Aufgaben standardmäßig anzeigen</label>
                             </div>
                         </div>
-                    </div>
-
-                    <!-- Legacy Color Fields (preserved for compatibility) -->
-                    <div>
-                        <h3 class="h6 fw-bold text-primary border-bottom pb-2 mb-3">
-                            <i class="bi bi-palette me-1"></i>Erweiterte Farbwerte (Legacy / Admin)
-                        </h3>
-                        <div class="row g-2">
-                            <div class="col-6 col-sm-3">
-                                <label class="form-label small">Primärfarbe</label>
-                                <input type="color" name="primary_color" x-model="primary" class="form-control form-control-color w-100">
-                            </div>
-                            <div class="col-6 col-sm-3">
-                                <label class="form-label small">Akzentfarbe</label>
-                                <input type="color" name="accent_color" x-model="accent" class="form-control form-control-color w-100">
-                            </div>
-                            <div class="col-6 col-sm-3">
-                                <label class="form-label small">Hintergrund</label>
-                                <input type="color" name="bg_color" x-model="bg" class="form-control form-control-color w-100">
-                            </div>
-                            <div class="col-6 col-sm-3">
-                                <label class="form-label small">Textfarbe</label>
-                                <input type="color" name="text_color" x-model="text" class="form-control form-control-color w-100">
-                            </div>
-                        </div>
-                        <input type="hidden" name="input_bg_color" x-model="input_bg">
-                        <input type="hidden" name="input_text_color" x-model="input_text">
-                        <input type="hidden" name="header_bg_color" x-model="header_bg">
-                        <input type="hidden" name="header_text_color" x-model="header_text">
-                        <input type="hidden" name="glass_opacity" x-model="opacity">
                     </div>
 
                     <!-- PWA Cache -->
