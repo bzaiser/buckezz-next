@@ -12,7 +12,8 @@ class Command(BaseCommand):
         self.stdout.write(self.style.MIGRATE_HEADING("1. Migriere Registry-Datenbank (default)..."))
         call_command('migrate', database='default', interactive=False)
         call_command('seed_templates', database='default')
-        call_command('sync_domain_master_data', database='default')
+        if 'domain_kit' in settings.INSTALLED_APPS:
+            call_command('sync_domain_master_data', database='default')
 
         # Alle registrierten Mandanten ermitteln
         tenants = Tenant.objects.using('default').all()
@@ -25,7 +26,8 @@ class Command(BaseCommand):
                 db_alias = register_tenant_db(tenant.slug)
                 call_command('migrate', database=db_alias, interactive=False)
                 call_command('seed_templates', database=db_alias)
-                call_command('sync_domain_master_data', database=db_alias)
+                if 'domain_kit' in settings.INSTALLED_APPS:
+                    call_command('sync_domain_master_data', database=db_alias)
                 self.stdout.write(self.style.SUCCESS(f"✅ Mandant '{tenant.slug}' erfolgreich migriert und Templates eingespielt."))
             except Exception as e:
                 self.stdout.write(self.style.ERROR(f"❌ Fehler bei der Migration von '{tenant.slug}': {e}"))

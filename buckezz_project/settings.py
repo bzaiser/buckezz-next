@@ -86,9 +86,11 @@ INSTALLED_APPS = [
     'core',
 ]
 
+OPS_REQUIRED_KITS = ['design_studio', 'ops_kit', 'grid_kit', 'seed_kit', 'domain_kit']
+
 try:
     from ops_kit.runtime import apply_runtime_installed_apps
-    apply_runtime_installed_apps(INSTALLED_APPS, BASE_DIR)
+    apply_runtime_installed_apps(INSTALLED_APPS, BASE_DIR, protected=OPS_REQUIRED_KITS)
 except ImportError:
     pass
 
