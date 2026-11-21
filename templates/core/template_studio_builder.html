@@ -431,17 +431,17 @@
                                     <div>
                                         <div class="small fw-semibold mb-2">Eintrags-Layout</div>
                                 <div class="btn-group w-100" role="group">
-                                    <input type="radio" class="btn-check" name="ui_layout_mode" id="ui_mode_row" value="row" x-model="uiStyle.layout_mode">
+                                    <input type="radio" class="btn-check" name="ui_layout_mode" id="ui_mode_row" value="row" x-model="uiStyle.layout_mode" {% if ui_style.layout_mode == 'row' or not ui_style.layout_mode %}checked{% endif %}>
                                     <label class="btn btn-outline-primary btn-sm" for="ui_mode_row">
                                         <i class="bi bi-list-ul me-1"></i>Zeile
                                     </label>
 
-                                    <input type="radio" class="btn-check" name="ui_layout_mode" id="ui_mode_cards" value="cards" x-model="uiStyle.layout_mode">
+                                    <input type="radio" class="btn-check" name="ui_layout_mode" id="ui_mode_cards" value="cards" x-model="uiStyle.layout_mode" {% if ui_style.layout_mode == 'cards' %}checked{% endif %}>
                                     <label class="btn btn-outline-primary btn-sm" for="ui_mode_cards">
                                         <i class="bi bi-grid me-1"></i>Karten-Grid
                                     </label>
 
-                                    <input type="radio" class="btn-check" name="ui_layout_mode" id="ui_mode_stacked" value="stacked" x-model="uiStyle.layout_mode">
+                                    <input type="radio" class="btn-check" name="ui_layout_mode" id="ui_mode_stacked" value="stacked" x-model="uiStyle.layout_mode" {% if ui_style.layout_mode == 'stacked' %}checked{% endif %}>
                                     <label class="btn btn-outline-primary btn-sm" for="ui_mode_stacked">
                                         <i class="bi bi-view-stacked me-1"></i>Detail-Stapel
                                     </label>
@@ -451,16 +451,16 @@
                             <div x-show="uiStyle.layout_mode === 'cards'">
                                 <div class="small fw-semibold mb-2">Karten-Breite</div>
                                 <div class="btn-group w-100" role="group">
-                                    <input type="radio" class="btn-check" name="ui_card_width" id="ui_cw_14" value="1/4" x-model="uiStyle.card_width">
+                                    <input type="radio" class="btn-check" name="ui_card_width" id="ui_cw_14" value="1/4" x-model="uiStyle.card_width" {% if ui_style.card_width == '1/4' %}checked{% endif %}>
                                     <label class="btn btn-outline-primary btn-sm" for="ui_cw_14">1/4</label>
 
-                                    <input type="radio" class="btn-check" name="ui_card_width" id="ui_cw_12" value="1/2" x-model="uiStyle.card_width">
+                                    <input type="radio" class="btn-check" name="ui_card_width" id="ui_cw_12" value="1/2" x-model="uiStyle.card_width" {% if ui_style.card_width == '1/2' %}checked{% endif %}>
                                     <label class="btn btn-outline-primary btn-sm" for="ui_cw_12">1/2</label>
 
-                                    <input type="radio" class="btn-check" name="ui_card_width" id="ui_cw_34" value="3/4" x-model="uiStyle.card_width">
+                                    <input type="radio" class="btn-check" name="ui_card_width" id="ui_cw_34" value="3/4" x-model="uiStyle.card_width" {% if ui_style.card_width == '3/4' %}checked{% endif %}>
                                     <label class="btn btn-outline-primary btn-sm" for="ui_cw_34">3/4</label>
 
-                                    <input type="radio" class="btn-check" name="ui_card_width" id="ui_cw_hero" value="hero" x-model="uiStyle.card_width">
+                                    <input type="radio" class="btn-check" name="ui_card_width" id="ui_cw_hero" value="hero" x-model="uiStyle.card_width" {% if ui_style.card_width == 'hero' %}checked{% endif %}>
                                     <label class="btn btn-outline-primary btn-sm" for="ui_cw_hero">1 Hero</label>
                                 </div>
                             </div>
@@ -469,13 +469,13 @@
                                         <div class="col-6">
                                             <label class="form-label small fw-semibold mb-1">Dichte</label>
                                             <select name="ui_density" x-model="uiStyle.density" class="form-select form-select-sm">
-                                                <option value="normal">Normal</option>
-                                                <option value="compact">Kompakt</option>
+                                                <option value="normal" {% if ui_style.density != 'compact' %}selected{% endif %}>Normal</option>
+                                                <option value="compact" {% if ui_style.density == 'compact' %}selected{% endif %}>Kompakt</option>
                                             </select>
                                         </div>
                                         <div class="col-6 pt-3">
                                             <div class="form-check form-switch">
-                                                <input class="form-check-input" type="checkbox" name="ui_show_creator" id="ui_creator" x-model="uiStyle.show_creator">
+                                                <input class="form-check-input" type="checkbox" name="ui_show_creator" id="ui_creator" x-model="uiStyle.show_creator" {% if ui_style.show_creator %}checked{% endif %}>
                                                 <label class="form-check-label small" for="ui_creator">Ersteller zeigen</label>
                                             </div>
                                         </div>
@@ -485,7 +485,7 @@
                                         <label class="form-label small fw-semibold mb-1">Listen-Genre (Theme-Stil)</label>
                                         <select name="ui_genre" x-model="uiStyle.genre" class="form-select form-select-sm">
                                             {% for gk, gl in genre_choices %}
-                                            <option value="{{ gk }}">{{ gl }}</option>
+                                            <option value="{{ gk }}" {% if ui_style.genre == gk %}selected{% endif %}>{{ gl }}</option>
                                             {% endfor %}
                                         </select>
                                     </div>
@@ -825,7 +825,14 @@
             get genrePreviewStyle() {
                 const g = this.genrePreviews[this.uiStyle.genre];
                 if (!g || !g.primary) return '';
-                return `border-left: 4px solid ${g.primary};`;
+                let css = `border-left: 4px solid ${g.primary};`;
+                const photo = g.custom_photo_url || '';
+                if (photo) {
+                    css += ` background-image: linear-gradient(rgba(255,255,255,0.72), rgba(255,255,255,0.72)), url('${photo}'); background-size: cover; background-position: center;`;
+                } else if (g.bg_light && document.documentElement.getAttribute('data-bs-theme') !== 'dark') {
+                    css += ` background-color: ${g.bg_light};`;
+                }
+                return css;
             },
 
             get sampleData() {

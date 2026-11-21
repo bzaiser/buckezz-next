@@ -666,7 +666,10 @@ class BucketListDetailView(DetailView):
         context['ui'] = ui_style
         if ui_style.get('genre'):
             from design_studio.genres import get_genre_definition
-            genre_def = get_genre_definition(ui_style['genre'])
+            try:
+                genre_def = get_genre_definition(ui_style['genre'], user=self.request.user)
+            except TypeError:
+                genre_def = get_genre_definition(ui_style['genre'])
             if genre_def:
                 context['active_genre'] = genre_def
         context['kpi_summary'] = _compute_kpi_summary(tpl, active_items, completed_items)
@@ -2506,6 +2509,7 @@ class TemplateStudioBuilderView(StaffRequiredMixin, View):
             'allowed_statuses_json': json.dumps(allowed_statuses),
             'allowed_roles_json': json.dumps(allowed_roles),
             'logic_rules_json': json.dumps(logic_rules),
+            'ui_style': ui_style,
             'ui_style_json': json.dumps(ui_style),
             'custom_fields_json': json.dumps(custom_fields),
             'summary_rule_json': json.dumps(summary_rule),

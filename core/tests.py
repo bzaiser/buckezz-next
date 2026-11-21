@@ -323,12 +323,19 @@ class BuckezzRegressionTests(TestCase):
         self.assertEqual(cat.template.get_ui_style()['genre'], 'scifi')
         self.assertFalse(cat.template.get_ui_style()['show_creator'])
 
+        # Re-opening builder renders the saved genre pre-selected
+        edit_resp = self.client.get(reverse('core:template_studio_edit', args=[cat.pk]))
+        self.assertEqual(edit_resp.status_code, 200)
+        self.assertContains(edit_resp, 'value="scifi" selected')
+
         bucket = BucketList.objects.create(title='Karten-Test', category=cat, owner=staff)
         ListItem.objects.create(bucket_list=bucket, title='Eintrag A', created_by=staff)
         detail_resp = self.client.get(reverse('core:list_detail', args=[bucket.id]))
         self.assertEqual(detail_resp.status_code, 200)
         self.assertContains(detail_resp, 'col-12 col-md-6 col-xl-4')
         self.assertContains(detail_resp, 'data-genre="scifi"')
+        self.assertContains(detail_resp, '--ds-genre-accent:')
+        self.assertContains(detail_resp, 'ds-genre-svg-layer')
         self.assertNotContains(detail_resp, 'Erstellt von ui_admin')
 
     def test_card_layout_and_hidden_custom_fields(self):
