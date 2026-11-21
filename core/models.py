@@ -43,8 +43,28 @@ class Person(models.Model):
     phone = models.CharField(max_length=50, blank=True, null=True, verbose_name=_("Telefonnummer"))
     notes = models.TextField(blank=True, null=True, verbose_name=_("Kontaktnotizen"))
     user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='person_profile')
+    domain_person = models.OneToOneField('domain_kit.Person', on_delete=models.SET_NULL, null=True, blank=True, related_name='buckezz_person')
     access_token = models.UUIDField(default=uuid.uuid4, unique=True)
     birth_date = models.DateField(null=True, blank=True)
+
+    @property
+    def avatar_url(self):
+        if self.domain_person_id:
+            try:
+                if self.domain_person and self.domain_person.photo:
+                    return self.domain_person.photo.url
+            except Exception:
+                return ''
+        return ''
+
+    @property
+    def company_label(self):
+        if self.domain_person_id:
+            try:
+                return (self.domain_person.company or '').strip()
+            except Exception:
+                return ''
+        return ''
 
     @property
     def age(self):
@@ -125,6 +145,8 @@ class ListTemplate(models.Model):
     use_rating = models.BooleanField(default=False)
     use_tracker = models.BooleanField(default=False)
     use_milestone = models.BooleanField(default=False)
+    use_domain_category = models.BooleanField(default=False, verbose_name=_("Kategorie (Stammdaten)"))
+    domain_category_purpose = models.CharField(max_length=32, blank=True, default='', verbose_name=_("Kategorie-Bereich"))
     use_image = models.BooleanField(default=False, verbose_name=_("Foto / Bildanhang erlauben"))
     use_subchecklist = models.BooleanField(default=False, verbose_name=_("Teil-Checkliste / Aufzählung aktivieren"))
     use_subchecklist_photos = models.BooleanField(default=False, verbose_name=_("Teil-Checkliste mit Foto pro Eintrag"))
@@ -140,6 +162,7 @@ class ListTemplate(models.Model):
         ('none', _('Keine Gruppierung')),
         ('milestone', _('Alters-Meilensteine')),
         ('status', _('Status')),
+        ('category', _('Kategorie (Stammdaten)')),
         ('person', _('Person / Zuständig')),
         ('shop', _('Geschäft / Shop')),
         ('brand', _('Marke / Hersteller')),
@@ -157,25 +180,126 @@ class ListTemplate(models.Model):
     def __str__(self):
         return f"Template für {self.category.name}"
 
+    def _get_domain_status_lookup(self):
+        lookup = {}
+        try:
+            from domain_kit.models import Status as DomainStatus
+            from django.utils.text import slugify
+            db_alias = self._state.db or 'default'
+            for ds in DomainStatus.objects.using(db_alias).all().order_by('position', 'id'):
+                accent = ds.custom_color or f"var(--theme-state-{ds.color_state}, var(--app-primary, #0d6efd))"
+                style_info = {
+                    'domain_status_id': ds.id,
+                    'color_state': ds.color_state,
+                    'custom_color': ds.custom_color,
+                    'icon': ds.icon,
+                    'badge_style': ds.badge_style,
+                    'accent_color': accent,
+                    'completes': bool(ds.is_final),
+                }
+                lookup[ds.name.strip().lower()] = style_info
+                slug_key = slugify(ds.name).replace('-', '_')[:20]
+                if slug_key:
+                    lookup[slug_key] = style_info
+        except Exception:
+            pass
+        return lookup
+
     def get_effective_statuses(self):
+        from django.utils.text import slugify
+        ds_lookup = self._get_domain_status_lookup()
+
+        def _enrich(entry):
+            out = dict(entry)
+            lbl = str(out.get('label') or '').strip().lower()
+            key = str(out.get('key') or '').strip().lower()
+            match = ds_lookup.get(lbl) or ds_lookup.get(key)
+            if match:
+                out.setdefault('color_state', match['color_state'])
+                out.setdefault('custom_color', match['custom_color'])
+                out.setdefault('icon', match['icon'])
+                out.setdefault('badge_style', match['badge_style'])
+                out.setdefault('accent_color', match['accent_color'])
+            return out
+
         if isinstance(self.allowed_statuses_json, list) and len(self.allowed_statuses_json) > 0:
-            return self.allowed_statuses_json
+            return [_enrich(s) for s in self.allowed_statuses_json if isinstance(s, dict)]
         if self.logic_type == 'gift':
             return [
-                {'key': 'open', 'label': 'Offen', 'completes': False},
-                {'key': 'reserved', 'label': 'Reserviert', 'completes': False},
-                {'key': 'fulfilled', 'label': 'Wunsch erfüllt', 'completes': True},
+                _enrich({'key': 'open', 'label': 'Offen', 'completes': False}),
+                _enrich({'key': 'reserved', 'label': 'Reserviert', 'completes': False}),
+                _enrich({'key': 'fulfilled', 'label': 'Wunsch erfüllt', 'completes': True}),
             ]
+        if self.use_status:
+            try:
+                from domain_kit.models import Status as DomainStatus
+                db_alias = self._state.db or 'default'
+                ds_list = list(
+                    DomainStatus.objects.using(db_alias)
+                    .filter(scope__in=['list', 'global'])
+                    .order_by('position', 'id')
+                )
+                if ds_list:
+                    out = []
+                    seen = set()
+                    for ds in ds_list:
+                        key = slugify(ds.name).replace('-', '_')[:20] or f"st_{ds.id}"
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        accent = ds.custom_color or f"var(--theme-state-{ds.color_state}, var(--app-primary, #0d6efd))"
+                        out.append({
+                            'key': key,
+                            'label': ds.name,
+                            'completes': bool(ds.is_final),
+                            'color_state': ds.color_state,
+                            'custom_color': ds.custom_color,
+                            'icon': ds.icon,
+                            'badge_style': ds.badge_style,
+                            'accent_color': accent,
+                        })
+                    return out
+            except Exception:
+                pass
         done_label = 'Erreicht' if self.logic_type == 'bucket' else 'Erledigt'
         return [
-            {'key': 'open', 'label': 'Offen', 'completes': False},
-            {'key': 'completed', 'label': done_label, 'completes': True},
+            _enrich({'key': 'open', 'label': 'Offen', 'completes': False}),
+            _enrich({'key': 'completed', 'label': done_label, 'completes': True}),
         ]
 
     def get_logic_rule(self, key, default=False):
         if isinstance(self.logic_rules_json, dict) and key in self.logic_rules_json:
             return self.logic_rules_json[key]
         return default
+
+    def _enrich_roles_with_domain(self, roles):
+        try:
+            from domain_kit.models import Role as DomainRole
+            from django.utils.text import slugify
+            db_alias = self._state.db or 'default'
+            dr_lookup = {}
+            for dr in DomainRole.objects.using(db_alias).all().order_by('position', 'name'):
+                info = {
+                    'color_state': dr.color_state,
+                    'custom_color': dr.custom_color,
+                    'badge_style': dr.badge_style,
+                }
+                dr_lookup[dr.name.strip().lower()] = info
+                skey = slugify(dr.name).replace('-', '_')[:20]
+                if skey:
+                    dr_lookup[skey] = info
+            if dr_lookup:
+                enriched = []
+                for r in roles:
+                    item = dict(r)
+                    match = dr_lookup.get(str(item.get('label') or '').strip().lower()) or dr_lookup.get(str(item.get('key') or '').strip().lower())
+                    if match:
+                        item.update(match)
+                    enriched.append(item)
+                return enriched
+        except Exception:
+            pass
+        return roles
 
     def get_effective_roles(self):
         if isinstance(self.allowed_roles_json, list) and len(self.allowed_roles_json) > 0:
@@ -195,9 +319,9 @@ class ListTemplate(models.Model):
                     key = (slugify(label) or f'role_{idx + 1}')[:20]
                     normalized.append({'key': key, 'label': label, 'completes': False})
             if normalized:
-                return normalized
+                return self._enrich_roles_with_domain(normalized)
         if self.logic_type == 'event':
-            return [
+            return self._enrich_roles_with_domain([
                 {'key': 'assigned', 'label': 'Organisator / Zuständig', 'completes': False},
                 {'key': 'invited', 'label': 'Gast (Eingeladen)', 'completes': False},
                 {'key': 'attending', 'label': 'Zusage (Teilnahme)', 'completes': False},
@@ -207,8 +331,8 @@ class ListTemplate(models.Model):
                 {'key': 'fulfilled', 'label': 'Erledigt / Besorgt', 'completes': True},
                 {'key': 'borrowed_from', 'label': 'Geliehen von', 'completes': False},
                 {'key': 'lent_to', 'label': 'Verliehen an', 'completes': False},
-            ]
-        return [
+            ])
+        return self._enrich_roles_with_domain([
             {'key': 'assigned', 'label': 'Zuständig', 'completes': False},
             {'key': 'invited', 'label': 'Eingeladen', 'completes': False},
             {'key': 'attending', 'label': 'Zugesagt', 'completes': False},
@@ -218,7 +342,7 @@ class ListTemplate(models.Model):
             {'key': 'fulfilled', 'label': 'Wunsch erfüllt', 'completes': True},
             {'key': 'borrowed_from', 'label': 'Geliehen von', 'completes': False},
             {'key': 'lent_to', 'label': 'Verliehen an', 'completes': False},
-        ]
+        ])
 
     def get_ui_style(self):
         defaults = {
@@ -311,6 +435,7 @@ class ListItem(models.Model):
     amount = models.CharField(max_length=100, null=True, blank=True)
     amount_value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     unit = models.ForeignKey('domain_kit.Unit', on_delete=models.SET_NULL, null=True, blank=True, related_name='items')
+    domain_category = models.ForeignKey('domain_kit.Category', on_delete=models.SET_NULL, null=True, blank=True, related_name='buckezz_items')
     brand = models.CharField(max_length=255, null=True, blank=True)
     shop = models.CharField(max_length=255, null=True, blank=True)
     url = models.URLField(max_length=1000, null=True, blank=True)
@@ -514,35 +639,62 @@ class ListItem(models.Model):
 
     @property
     def effective_status_info(self):
-        """Return matching custom status dict or built-in waiting/overdue display info."""
+        """Return matching custom or domain_kit status dict with live badge_style/icon."""
+        if hasattr(self, '_cached_status_info'):
+            return self._cached_status_info
         info = None
         tpl = getattr(getattr(self.bucket_list, 'category', None), 'template', None)
-        if tpl and tpl.allowed_statuses_json:
+        if tpl and (tpl.allowed_statuses_json or tpl.use_status):
             for st in tpl.get_effective_statuses():
                 if st.get('key') == self.status:
+                    # Skip noisy default 'active'/'open' badge when template has no explicit custom statuses
+                    if not tpl.allowed_statuses_json and self.status in ('active', 'open') and not self.is_completed:
+                        return None
                     info = dict(st)
                     break
         if not info and self.status in ('waiting', 'overdue'):
             info = {'key': self.status, 'label': self.get_status_display(), 'completes': False}
 
-        # Enrich with live domain_kit Status styling if available
-        try:
-            from domain_kit.models import Status as DomainStatus
-            db_alias = self._state.db or 'default'
-            label_query = (info.get('label') if info else None) or self.status
-            ds = DomainStatus.objects.using(db_alias).filter(
-                models.Q(name__iexact=label_query) | models.Q(name__iexact=self.status)
-            ).first()
-            if ds:
-                if not info:
-                    info = {'key': self.status, 'label': ds.name, 'completes': ds.is_final}
-                info['color_state'] = ds.color_state
-                info['custom_color'] = ds.custom_color
-                info['icon'] = ds.icon
-                info['badge_style'] = ds.badge_style
-        except Exception:
-            pass
+        # Enrich with live domain_kit Status styling if not already enriched
+        if info is None or not info.get('badge_style'):
+            try:
+                from domain_kit.models import Status as DomainStatus
+                from django.utils.text import slugify
+                db_alias = self._state.db or 'default'
+                label_query = (info.get('label') if info else None) or self.status
+                ds = None
+                for cand in DomainStatus.objects.using(db_alias).all().order_by('position', 'id'):
+                    c_slug = slugify(cand.name).replace('-', '_')[:20]
+                    if cand.name.lower() == str(label_query).lower() or cand.name.lower() == str(self.status).lower() or c_slug == self.status:
+                        ds = cand
+                        break
+                if ds:
+                    if not info:
+                        if self.status in ('active', 'open') and not self.is_completed:
+                            return None
+                        info = {'key': self.status, 'label': ds.name, 'completes': ds.is_final}
+                    info['color_state'] = ds.color_state
+                    info['custom_color'] = ds.custom_color
+                    info['icon'] = ds.icon
+                    info['badge_style'] = ds.badge_style
+                    info['accent_color'] = ds.custom_color or f"var(--theme-state-{ds.color_state}, var(--app-primary, #0d6efd))"
+            except Exception:
+                pass
         return info
+
+    @property
+    def card_accent_color(self):
+        st = self.effective_status_info
+        if st and st.get('accent_color'):
+            return st['accent_color']
+        if self.domain_category_id:
+            try:
+                cat = self.domain_category
+                if cat:
+                    return cat.custom_color or f"var(--theme-state-{cat.color_state}, var(--app-primary, #0d6efd))"
+            except Exception:
+                pass
+        return ''
 
     class Meta:
         ordering = ['order', '-created_at']
@@ -579,6 +731,35 @@ class ItemPersonRole(models.Model):
     item = models.ForeignKey(ListItem, on_delete=models.CASCADE, related_name='person_roles')
     person = models.ForeignKey(Person, on_delete=models.CASCADE, related_name='item_roles')
     role = models.CharField(max_length=20, choices=STATUS_CHOICES, default='assigned')
+
+    @property
+    def role_label(self):
+        if hasattr(self, '_cached_role_label'):
+            return self._cached_role_label
+        try:
+            tpl = self.item.bucket_list.category.template
+            for r in tpl.get_effective_roles():
+                if r.get('key') == self.role:
+                    return r.get('label') or self.get_role_display()
+        except Exception:
+            pass
+        return self.get_role_display()
+
+    @property
+    def role_badge_style(self):
+        if hasattr(self, '_cached_role_style'):
+            return self._cached_role_style
+        try:
+            from domain_kit.models import Role as DomainRole
+            from django.utils.text import slugify
+            db_alias = self._state.db or 'default'
+            lbl = self.role_label.strip().lower()
+            for dr in DomainRole.objects.using(db_alias).all():
+                if dr.name.strip().lower() == lbl or slugify(dr.name).replace('-', '_')[:20] == self.role:
+                    return dr.badge_style
+        except Exception:
+            pass
+        return ''
 
     class Meta:
         unique_together = ('item', 'person')

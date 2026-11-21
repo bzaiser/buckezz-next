@@ -22,7 +22,11 @@
     {% for group in grouped_active %}
         <div class="my-3 px-2 px-sm-3 {% if group.is_current %}card border-warning p-2 p-sm-3 rounded-4{% endif %}">
             <h3 class="h6 fw-bold d-flex align-items-center gap-2 mb-2 {% if group.is_current %}text-warning{% else %}text-primary{% endif %}">
-                <span><i class="bi bi-pin-angle me-1"></i>{{ group.label }}</span>
+                {% if group.badge_style %}
+                <span class="badge text-white rounded-pill px-3 py-1" style="{{ group.badge_style }}">{% if group.icon %}<i class="bi {{ group.icon }} me-1"></i>{% endif %}{{ group.label }}</span>
+                {% else %}
+                <span><i class="bi {{ group.icon|default:'bi-pin-angle' }} me-1"></i>{{ group.label }}</span>
+                {% endif %}
                 {% if group.is_current %}
                     <span class="badge bg-warning text-dark text-uppercase">Aktueller Fokus</span>
                 {% endif %}

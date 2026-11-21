@@ -153,6 +153,15 @@
                                                 Bausteine aus der Palette hierher ziehen oder mit <strong>+</strong> hinzufügen.
                                             </div>
                                         </div>
+                                        <div x-show="activeKeys.includes('use_domain_category')" class="mt-3 p-2 border rounded-3 bg-body-tertiary">
+                                            <label class="form-label small fw-semibold mb-1"><i class="bi bi-tags me-1"></i>Kategorie-Bereich (Stammdaten)</label>
+                                            <select name="domain_category_purpose" class="form-select form-select-sm">
+                                                <option value="" {% if not tpl.domain_category_purpose %}selected{% endif %}>Alle aktiven Kategorien</option>
+                                                {% for pval, plabel in purpose_choices %}
+                                                <option value="{{ pval }}" {% if tpl.domain_category_purpose == pval %}selected{% endif %}>{{ plabel }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -171,8 +180,9 @@
                                 <div class="small fw-semibold mb-2">Erlaubte Eintrags-Stati</div>
                                 <div class="d-flex flex-wrap gap-1 mb-2">
                                     <template x-for="preset in statusPresets" :key="'pre-' + preset.key">
-                                        <button type="button" @click="addStatusPreset(preset)" class="btn btn-sm btn-outline-secondary py-0">
-                                            + <span x-text="preset.label"></span>
+                                        <button type="button" @click="addStatusPreset(preset)" class="btn btn-sm btn-outline-secondary py-0 d-inline-flex align-items-center gap-1">
+                                            <span x-show="preset.badge_style" class="rounded-circle d-inline-block" style="width:9px;height:9px;" :style="preset.badge_style"></span>
+                                            <span>+ <span x-text="preset.label"></span></span>
                                         </button>
                                     </template>
                                 </div>
@@ -201,8 +211,9 @@
                                 </div>
                                 <div class="d-flex flex-wrap gap-1 mb-2">
                                     <template x-for="rp in rolePresets" :key="'rp-' + rp.key">
-                                        <button type="button" @click="addRolePreset(rp)" class="btn btn-sm btn-outline-secondary py-0">
-                                            + <span x-text="rp.label"></span>
+                                        <button type="button" @click="addRolePreset(rp)" class="btn btn-sm btn-outline-secondary py-0 d-inline-flex align-items-center gap-1">
+                                            <span x-show="rp.badge_style" class="rounded-circle d-inline-block" style="width:9px;height:9px;" :style="rp.badge_style"></span>
+                                            <span>+ <span x-text="rp.label"></span></span>
                                         </button>
                                     </template>
                                     <button type="button" @click="allowedRoles.push({ key: '', label: '', completes: false })" class="btn btn-sm btn-outline-primary py-0">
@@ -764,12 +775,12 @@
         const initialRecurrence = {{ recurrence_json|default:"{}"|safe }};
         const statusPresets = [
             {% for p in status_presets %}
-            { key: '{{ p.key }}', label: '{{ p.label|escapejs }}', completes: {{ p.completes|yesno:"true,false" }} }{% if not forloop.last %},{% endif %}
+            { key: '{{ p.key }}', label: '{{ p.label|escapejs }}', completes: {{ p.completes|yesno:"true,false" }}, badge_style: '{{ p.badge_style|default:""|escapejs }}' }{% if not forloop.last %},{% endif %}
             {% endfor %}
         ];
         const rolePresets = [
             {% for r in role_presets %}
-            { key: '{{ r.key }}', label: '{{ r.label|escapejs }}', completes: {{ r.completes|yesno:"true,false" }} }{% if not forloop.last %},{% endif %}
+            { key: '{{ r.key }}', label: '{{ r.label|escapejs }}', completes: {{ r.completes|yesno:"true,false" }}, badge_style: '{{ r.badge_style|default:""|escapejs }}' }{% if not forloop.last %},{% endif %}
             {% endfor %}
         ];
 
@@ -939,6 +950,7 @@
                     use_image: '2 Fotos',
                     use_url: 'Link',
                     use_persons: this.allowedRoles[0]?.label || 'Zuständig',
+                    use_domain_category: 'Kategorie',
                     use_start_date: 'Start: 20.11.',
                     use_end_date: 'Ende: 27.11.',
                     use_reminder: 'Erinnerung',

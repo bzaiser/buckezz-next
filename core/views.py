@@ -294,29 +294,47 @@ def _group_items_by_rule(tpl, active_items, completed_items, beneficiary):
         if mode == 'status':
             info = item.effective_status_info
             if info:
-                return info['label']
+                return info['label'], info.get('badge_style', ''), info.get('icon', '')
             if tpl.allowed_statuses_json:
-                first_open = next((s.get('label') for s in tpl.get_effective_statuses() if not s.get('completes')), None)
+                first_open = next((s for s in tpl.get_effective_statuses() if not s.get('completes')), None)
                 if first_open:
-                    return first_open
-            return item.get_status_display()
+                    return first_open.get('label', 'Offen'), first_open.get('badge_style', ''), first_open.get('icon', '')
+            return item.get_status_display(), '', ''
+        if mode == 'category':
+            cat = getattr(item, 'domain_category', None)
+            if cat:
+                return cat.name, cat.badge_style, cat.icon
+            return 'Ohne Kategorie', '', 'bi-tag'
         if mode == 'person':
             roles = list(item.person_roles.all())
-            return roles[0].person.name if roles else 'Nicht zugewiesen'
+            return (roles[0].person.name if roles else 'Nicht zugewiesen'), '', 'bi-person'
         if mode == 'shop':
-            return item.shop or 'Ohne Geschäft'
+            return (item.shop or 'Ohne Geschäft'), '', 'bi-shop'
         if mode == 'brand':
-            return item.brand or 'Ohne Marke'
+            return (item.brand or 'Ohne Marke'), '', 'bi-tag'
         if mode == 'location':
-            return item.location or 'Ohne Ort'
-        return 'Allgemein'
+            return (item.location or 'Ohne Ort'), '', 'bi-geo-alt'
+        return 'Allgemein', '', ''
 
     def build_groups(items):
         buckets = {}
+        meta = {}
         for it in items:
-            lbl = key_for(it)
+            lbl, bstyle, icon = key_for(it)
             buckets.setdefault(lbl, []).append(it)
-        return [{'key': k, 'label': k, 'items': v, 'is_current': False} for k, v in buckets.items()]
+            if lbl not in meta:
+                meta[lbl] = (bstyle, icon)
+        return [
+            {
+                'key': k,
+                'label': k,
+                'items': v,
+                'is_current': False,
+                'badge_style': meta[k][0],
+                'icon': meta[k][1],
+            }
+            for k, v in buckets.items()
+        ]
 
     return build_groups(active_items), build_groups(completed_items)
 
@@ -482,20 +500,36 @@ def get_list_items_for_user(request, bucket):
         items = bucket.items.order_by('order', 'created_at')
     else:
         items = bucket.items.order_by('order', '-created_at')
-    
+
+    items = items.select_related('unit', 'domain_category', 'created_by', 'updated_by').prefetch_related(
+        'person_roles__person__domain_person', 'images'
+    )
+
     # Live Search Filter
     q = request.GET.get('q')
     if q:
         items = items.filter(title__icontains=q.strip())
-        
+
+    # Optional Domain-Kit Category / Status filter
+    cat_filter = (request.GET.get('domain_category') or '').strip()
+    if cat_filter.isdigit():
+        items = items.filter(domain_category_id=int(cat_filter))
+    status_filter = (request.GET.get('status') or '').strip()
+    if status_filter:
+        items = items.filter(status=status_filter)
+
+    item_list = list(items)
+    from core.domain_sync import attach_domain_styles
+    attach_domain_styles(bucket.category.template, item_list)
+
     if is_beneficiary:
         # Beneficiary sees all items as active (hiding completed/fulfilled ones)
-        active_items = list(items)
+        active_items = item_list
         completed_items = []
     else:
-        active_items = [i for i in items if not i.is_completed]
-        completed_items = [i for i in items if i.is_completed]
-        
+        active_items = [i for i in item_list if not i.is_completed]
+        completed_items = [i for i in item_list if i.is_completed]
+
     return active_items, completed_items, is_beneficiary, current_person
 
 def group_items_by_milestone(active_items, completed_items, beneficiary):
@@ -620,7 +654,7 @@ class BucketListDetailView(DetailView):
                 request.session[session_key] = now
 
         context = self.get_context_data(object=self.object)
-        if request.headers.get('HX-Request') == 'true' and 'q' in request.GET:
+        if request.headers.get('HX-Request') == 'true' and any(k in request.GET for k in ('q', 'domain_category', 'status')):
             return render(request, 'core/partials/item_list.html', context)
         return self.render_to_response(context)
 
@@ -676,7 +710,15 @@ class BucketListDetailView(DetailView):
         context['item_alerts'] = _collect_item_alerts(tpl, active_items, completed_items)
         context['is_beneficiary'] = is_beneficiary
         context['current_person'] = current_person
-        context['people'] = Person.objects.all()
+        context['people'] = Person.objects.select_related('domain_person').order_by('name')
+        if tpl.use_domain_category:
+            from domain_kit.models import Category as DomainCategory
+            dc_qs = DomainCategory.objects.filter(is_active=True)
+            if tpl.domain_category_purpose:
+                dc_qs = dc_qs.filter(purpose=tpl.domain_category_purpose)
+            context['domain_categories'] = list(dc_qs.order_by('purpose', 'position', 'name'))
+        else:
+            context['domain_categories'] = []
         
         sums = get_price_sums(bucket, active_items, completed_items)
         context.update(sums)
@@ -931,10 +973,19 @@ class GetItemFormView(View):
                 gift_status = gift_role.role
                 gift_person = gift_role.person
         
-        from domain_kit.models import Unit
+        from domain_kit.models import Unit, Category as DomainCategory
         units = Unit.objects.all().order_by('position', 'name')
-        people = Person.objects.all()
-        raw_cf = getattr(bucket.category.template, 'custom_fields_json', None) or []
+        people = Person.objects.select_related('domain_person').order_by('name')
+        tpl = bucket.category.template
+        if tpl.use_domain_category:
+            dc_qs = DomainCategory.objects.filter(is_active=True)
+            if tpl.domain_category_purpose:
+                dc_qs = dc_qs.filter(purpose=tpl.domain_category_purpose)
+            domain_categories = list(dc_qs.order_by('purpose', 'position', 'name'))
+        else:
+            domain_categories = []
+        effective_statuses = tpl.get_effective_statuses()
+        raw_cf = getattr(tpl, 'custom_fields_json', None) or []
         item_cf_data = (item.custom_data_json if item and isinstance(item.custom_data_json, dict) else {})
         custom_fields_with_values = []
         for cf in raw_cf:
@@ -963,6 +1014,8 @@ class GetItemFormView(View):
             'gift_status': gift_status,
             'gift_person': gift_person,
             'units': units,
+            'domain_categories': domain_categories,
+            'effective_statuses': effective_statuses,
             'custom_fields_with_values': custom_fields_with_values,
         })
 
@@ -1036,6 +1089,7 @@ class AddItemView(View):
             amount=data.get('amount'),
             amount_value=amount_value,
             unit_id=data.get('unit_id') if data.get('unit_id') else None,
+            domain_category_id=data.get('domain_category_id') if data.get('domain_category_id') else None,
             price=data.get('price') if data.get('price') else None,
             brand=data.get('brand'),
             shop=data.get('shop'),
@@ -1144,6 +1198,8 @@ class EditItemView(View):
                 pass
         item.amount_value = amount_value
         item.unit_id = data.get('unit_id') if data.get('unit_id') else None
+        if 'domain_category_id' in data:
+            item.domain_category_id = data.get('domain_category_id') if data.get('domain_category_id') else None
         
         # Keep amount text set to None if amount_value is cleared
         if amount_value is None:
@@ -2376,6 +2432,7 @@ TEMPLATE_STUDIO_FIELDS = [
     {"key": "use_end_date", "label": "Enddatum", "icon": "bi-flag", "desc": "Endzeitpunkt oder Deadline"},
     {"key": "use_reminder", "label": "E-Mail-Erinnerung", "icon": "bi-alarm", "desc": "Zeitgesteuerte Erinnerung"},
     {"key": "use_persons", "label": "Personen & Rollen", "icon": "bi-people", "desc": "Zuständigkeiten, Gäste oder Wichtel"},
+    {"key": "use_domain_category", "label": "Kategorie (Stammdaten)", "icon": "bi-tags", "desc": "Farbige Kategorien & Gruppierung aus Domain-Kit"},
     {"key": "use_rating", "label": "Sterne-Bewertung", "icon": "bi-star", "desc": "1–5 Sterne Priorität oder Bewertung"},
     {"key": "use_tracker", "label": "Routine-Tracker", "icon": "bi-arrow-repeat", "desc": "Uhrzeiten-Chips & Vorrats-Bestand"},
     {"key": "use_milestone", "label": "Meilensteine", "icon": "bi-trophy", "desc": "Lebensabschnitte (Vor 30, Vor 40, ...)"},
@@ -2455,6 +2512,8 @@ class TemplateStudioBuilderView(StaffRequiredMixin, View):
                     "label": st.name,
                     "completes": bool(st.is_final),
                     "color_state": st.color_state,
+                    "custom_color": st.custom_color,
+                    "badge_style": st.badge_style,
                     "icon": st.icon,
                 })
             if presets:
@@ -2475,6 +2534,8 @@ class TemplateStudioBuilderView(StaffRequiredMixin, View):
                     "label": r.name,
                     "completes": False,
                     "color_state": r.color_state,
+                    "custom_color": r.custom_color,
+                    "badge_style": r.badge_style,
                 })
             if presets:
                 return presets
@@ -2487,16 +2548,18 @@ class TemplateStudioBuilderView(StaffRequiredMixin, View):
         active_keys = [
             f['key'] for f in TEMPLATE_STUDIO_FIELDS if tpl and getattr(tpl, f['key'], False)
         ]
-        allowed_statuses = tpl.get_effective_statuses() if tpl else [
-            {"key": "active", "label": "Offen", "completes": False},
-            {"key": "done", "label": "Erledigt", "completes": True},
-        ]
+        allowed_statuses = tpl.get_effective_statuses() if (tpl and tpl.allowed_statuses_json) else []
         allowed_roles = tpl.allowed_roles_json if (tpl and isinstance(tpl.allowed_roles_json, list)) else []
         logic_rules = tpl.logic_rules_json if (tpl and isinstance(tpl.logic_rules_json, dict)) else {}
         ui_style = tpl.get_ui_style() if tpl else {'layout_mode': 'row', 'card_width': '1/2', 'density': 'normal', 'show_creator': True, 'genre': '', 'card_layout': None}
         custom_fields = tpl.custom_fields_json if (tpl and isinstance(tpl.custom_fields_json, list)) else []
         summary_rule = tpl.summary_rule_json if (tpl and isinstance(tpl.summary_rule_json, dict)) else {}
         recurrence = tpl.recurrence_json if (tpl and isinstance(tpl.recurrence_json, dict)) else {}
+        try:
+            from domain_kit.models import PURPOSE_CHOICES
+            purpose_choices = list(PURPOSE_CHOICES)
+        except Exception:
+            purpose_choices = []
         return {
             'category': category,
             'tpl': tpl,
@@ -2504,6 +2567,7 @@ class TemplateStudioBuilderView(StaffRequiredMixin, View):
             'active_keys': active_keys,
             'status_presets': self.get_status_presets(),
             'role_presets': self.get_role_presets(),
+            'purpose_choices': purpose_choices,
             'group_by_choices': ListTemplate.GROUP_BY_CHOICES,
             'allowed_statuses_json': json.dumps(allowed_statuses),
             'allowed_roles_json': json.dumps(allowed_roles),
@@ -2569,6 +2633,7 @@ class TemplateStudioBuilderView(StaffRequiredMixin, View):
         for bool_field in ('use_is_public', 'use_allow_public_edit', 'use_beneficiary', 'use_secret_santa', 'new_items_at_bottom'):
             setattr(tpl, bool_field, request.POST.get(bool_field) == 'on')
 
+        tpl.domain_category_purpose = (request.POST.get('domain_category_purpose') or '').strip()[:32]
         tpl.use_status = True
         tpl.help_purpose = request.POST.get('help_purpose', '').strip() or None
         tpl.help_fields = request.POST.get('help_fields', '').strip() or None
@@ -2745,6 +2810,7 @@ class TemplateStudioExportView(StaffRequiredMixin, View):
             'logic_rules_json': tpl.logic_rules_json,
             'ui_style_json': tpl.ui_style_json,
             'custom_fields_json': tpl.custom_fields_json,
+            'domain_category_purpose': tpl.domain_category_purpose,
             'group_by': tpl.group_by,
             'summary_rule_json': tpl.summary_rule_json,
             'recurrence_json': tpl.recurrence_json,
@@ -2811,6 +2877,7 @@ class TemplateStudioImportView(StaffRequiredMixin, View):
             imported_ui = {**imported_ui, 'genre': ''}
         tpl.ui_style_json = imported_ui
         tpl.custom_fields_json = data.get('custom_fields_json') or []
+        tpl.domain_category_purpose = (data.get('domain_category_purpose') or '').strip()[:32]
         tpl.group_by = data.get('group_by') or 'none'
         tpl.summary_rule_json = data.get('summary_rule_json') or {}
         tpl.recurrence_json = data.get('recurrence_json') or {}

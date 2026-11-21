@@ -30,24 +30,22 @@
                         <input type="text" name="title" value="{{ item.title|default:'' }}" required class="form-control" autofocus>
                     </div>
 
-                    {% if item or bucket.category.template.allowed_statuses_json %}
+                    {% if item or bucket.category.template.allowed_statuses_json or bucket.category.template.use_status %}
                     <div>
                         {% if can_edit %}
                             <label class="form-label fw-semibold">Status</label>
                             <select name="item_status" class="form-select">
-                                {% if bucket.category.template.allowed_statuses_json %}
-                                    {% for st in bucket.category.template.get_effective_statuses %}
-                                    <option value="{{ st.key }}" {% if item and item.status == st.key or item and st.key == 'completed' and item.is_completed or item and st.key == 'open' and not item.is_completed and item.status == 'active' or not item and forloop.first %}selected{% endif %}>{{ st.label }}</option>
-                                    {% endfor %}
-                                {% elif bucket.category.template.logic_type == 'gift' %}
+                                {% if bucket.category.template.logic_type == 'gift' and not bucket.category.template.allowed_statuses_json %}
                                     <option value="open" {% if gift_status == 'open' %}selected{% endif %}>Offen</option>
                                     <option value="reserved" {% if gift_status == 'reserved' %}selected{% endif %}>Reserviert</option>
                                     <option value="fulfilled" {% if gift_status == 'fulfilled' %}selected{% endif %}>Wunsch erfüllt</option>
+                                {% elif effective_statuses %}
+                                    {% for st in effective_statuses %}
+                                    <option value="{{ st.key }}" {% if item and item.status == st.key or item and st.completes and item.is_completed and item.status == 'done' or item and not st.completes and not item.is_completed and item.status == 'active' and forloop.first or not item and forloop.first %}selected{% endif %}>{{ st.label }}</option>
+                                    {% endfor %}
                                 {% else %}
                                     <option value="open" {% if not item.is_completed %}selected{% endif %}>Offen</option>
-                                    <option value="completed" {% if item.is_completed %}selected{% endif %}>
-                                        {% if bucket.category.template.logic_type == 'bucket' %}Erreicht{% else %}Erledigt{% endif %}
-                                    </option>
+                                    <option value="completed" {% if item.is_completed %}selected{% endif %}>{% if bucket.category.template.logic_type == 'bucket' %}Erreicht{% else %}Erledigt{% endif %}</option>
                                 {% endif %}
                             </select>
                         {% else %}
@@ -75,6 +73,18 @@
                             </div>
                             {% endif %}
                         {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if bucket.category.template.use_domain_category %}
+                    <div>
+                        <label class="form-label fw-semibold"><i class="bi bi-tags me-1"></i>Kategorie (Stammdaten)</label>
+                        <select name="domain_category_id" class="form-select">
+                            <option value="">-- Keine Kategorie --</option>
+                            {% for dcat in domain_categories %}
+                            <option value="{{ dcat.id }}" {% if item and item.domain_category_id == dcat.id %}selected{% endif %}>{{ dcat.name }}{% if not bucket.category.template.domain_category_purpose %} ({{ dcat.get_purpose_display }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
                     </div>
                     {% endif %}
 
@@ -265,7 +275,7 @@
                                             {% endif %}
                                         {% endfor %}
                                     {% endif %}>
-                                    {{ p.name }}{% if p.phone %} ({{ p.phone }}){% endif %}
+                                    {{ p.name }}{% if p.company_label %} · {{ p.company_label }}{% endif %}{% if p.phone %} ({{ p.phone }}){% endif %}
                                 </option>
                             {% endfor %}
                         </select>

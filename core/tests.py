@@ -719,3 +719,117 @@ class BuckezzRegressionTests(TestCase):
         self.assertIn('BEGIN:VALARM', ics)
         self.assertIn('Kontrolle', ics)
         self.assertIn('Buchclub', ics)
+
+    def test_domain_kit_statuses_colors_categories_roles_and_persons_in_lists(self):
+        from domain_kit.models import (
+            Category as DomainCategory,
+            Person as DomainPerson,
+            Role as DomainRole,
+            Status as DomainStatus,
+        )
+        from core.models import Person as CorePerson, ItemPersonRole
+
+        owner = User.objects.create_user(username='dk_owner', password='secret', is_staff=True)
+        self.client.force_login(owner)
+
+        # 1. Domain-Kit master data with custom colors & icons
+        d_status = DomainStatus.objects.create(
+            name='In Arbeit',
+            scope='global',
+            custom_color='#e11d48',
+            icon='bi-lightning-charge',
+            position=5,
+            is_final=False,
+        )
+        d_cat = DomainCategory.objects.create(
+            name='IT-Hardware',
+            purpose='inventory',
+            custom_color='#0ea5e9',
+            icon='bi-cpu',
+            position=5,
+        )
+        d_role = DomainRole.objects.create(
+            name='Projektleiter',
+            custom_color='#9333ea',
+            position=5,
+        )
+
+        # 2. Domain-Kit Person auto-syncs to core.Person
+        d_person = DomainPerson.objects.create(
+            first_name='Clara',
+            last_name='Muster',
+            email='clara@example.com',
+            company='Muster GmbH',
+        )
+        synced_cp = CorePerson.objects.get(domain_person=d_person)
+        self.assertEqual(synced_cp.name, 'Clara Muster')
+        self.assertEqual(synced_cp.company_label, 'Muster GmbH')
+
+        # Quick-Add in Buckezz auto-syncs back to domain_kit.Person
+        qa_resp = self.client.post(reverse('core:quick_add_person'), {'name': 'Max Schnell', 'email': 'max@example.com'})
+        self.assertEqual(qa_resp.status_code, 200)
+        qa_cp = CorePerson.objects.get(pk=qa_resp.json()['id'])
+        self.assertIsNotNone(qa_cp.domain_person_id)
+        self.assertEqual(qa_cp.domain_person.full_name, 'Max Schnell')
+
+        # 3. Template using domain_kit categories, statuses & roles + category grouping
+        cat = ListCategory.objects.create(name='Projekt-Inventar', icon='bi-box-seam', slug='projekt-inventar')
+        ListTemplate.objects.create(
+            category=cat,
+            logic_type='generic',
+            use_status=True,
+            use_persons=True,
+            use_domain_category=True,
+            domain_category_purpose='inventory',
+            group_by='category',
+            allowed_roles_json=[{'key': 'projektleiter', 'label': 'Projektleiter', 'completes': False}],
+        )
+        bucket = BucketList.objects.create(title='Serverraum', category=cat, owner=owner)
+
+        # Item form exposes domain categories, synced domain persons, and domain statuses
+        form_resp = self.client.get(reverse('core:get_add_form', args=[bucket.id]))
+        self.assertEqual(form_resp.status_code, 200)
+        self.assertContains(form_resp, 'IT-Hardware')
+        self.assertContains(form_resp, 'Clara Muster · Muster GmbH')
+        self.assertContains(form_resp, 'In Arbeit')
+
+        # Create item with domain_category, domain_status, and synced person with domain_role
+        add_resp = self.client.post(reverse('core:add_item', args=[bucket.id]), {
+            'title': 'NAS Rack 1',
+            'domain_category_id': str(d_cat.id),
+            'item_status': 'in_arbeit',
+            'persons': [str(synced_cp.id)],
+            'person_default_role': 'projektleiter',
+            'notes': 'Wichtig',
+        })
+        self.assertIn(add_resp.status_code, (200, 204, 302))
+        item = ListItem.objects.get(bucket_list=bucket, title='NAS Rack 1')
+        self.assertEqual(item.domain_category_id, d_cat.id)
+        self.assertEqual(item.status, 'in_arbeit')
+        self.assertTrue(ItemPersonRole.objects.filter(item=item, person=synced_cp, role='projektleiter').exists())
+
+        # List detail renders real domain_kit colors, icons, category group header & filter
+        detail_resp = self.client.get(reverse('core:list_detail', args=[bucket.id]))
+        self.assertEqual(detail_resp.status_code, 200)
+        html = detail_resp.content.decode('utf-8')
+        self.assertIn('#e11d48', html)  # domain_kit.Status custom_color
+        self.assertIn('bi-lightning-charge', html)  # domain_kit.Status icon
+        self.assertIn('#0ea5e9', html)  # domain_kit.Category custom_color
+        self.assertIn('bi-cpu', html)  # domain_kit.Category icon
+        self.assertIn('IT-Hardware', html)
+        self.assertIn('Clara Muster (Projektleiter)', html)
+
+        # HTMX category filter works
+        flt_resp = self.client.get(
+            reverse('core:list_detail', args=[bucket.id]) + f'?domain_category={d_cat.id}',
+            HTTP_HX_REQUEST='true',
+        )
+        self.assertEqual(flt_resp.status_code, 200)
+        self.assertContains(flt_resp, 'NAS Rack 1')
+
+        # Non-owner sees colored domain_kit.Role badge
+        viewer = User.objects.create_user(username='dk_viewer', password='secret')
+        bucket.shared_with.add(viewer)
+        self.client.force_login(viewer)
+        viewer_html = self.client.get(reverse('core:list_detail', args=[bucket.id])).content.decode('utf-8')
+        self.assertIn('#9333ea', viewer_html)  # domain_kit.Role custom_color

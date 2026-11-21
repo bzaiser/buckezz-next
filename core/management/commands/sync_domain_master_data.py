@@ -109,7 +109,7 @@ class Command(BaseCommand):
         try:
             from core.models import ListTemplate
 
-            for tpl in ListTemplate.objects.using(db_alias).all():
+            for tpl in ListTemplate.objects.using(db_alias).only("id", "logic_type", "allowed_statuses_json", "use_status"):
                 for st in tpl.get_effective_statuses():
                     label = str(st.get("label") or st.get("key") or "").strip()
                     if not label:
@@ -137,7 +137,9 @@ class Command(BaseCommand):
         try:
             from core.models import ListTemplate
 
-            for tpl in ListTemplate.objects.using(db_alias).all():
+            for tpl in ListTemplate.objects.using(db_alias).select_related("category").only(
+                "id", "logic_type", "allowed_roles_json", "category__name"
+            ):
                 for rl in tpl.get_effective_roles():
                     label = str(rl.get("label") or rl.get("key") or "").strip()
                     if not label:
@@ -156,5 +158,23 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f"  ✓ {migrated_roles} Rollen-Definition(en) in Domain-Kit übernommen."))
         except Exception as e:
             self.stdout.write(self.style.WARNING(f"  ⚠ Hinweis bei Rollen-Sync: {e}"))
+
+        # 6. Personen bidirektional zwischen domain_kit.Person und core.Person verknüpfen
+        try:
+            from django.db import connections
+            with connections[db_alias].cursor() as cursor:
+                cols = {c.name for c in connections[db_alias].introspection.get_table_description(cursor, "core_person")}
+            if "domain_person_id" in cols:
+                from core.domain_sync import sync_all_persons
+
+                from_domain, to_domain = sync_all_persons(db_alias=db_alias)
+                if from_domain or to_domain:
+                    self.stdout.write(
+                        self.style.SUCCESS(
+                            f"  ✓ Personen abgeglichen ({from_domain} aus Domain-Kit, {to_domain} nach Domain-Kit)."
+                        )
+                    )
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f"  ⚠ Hinweis bei Personen-Sync: {e}"))
 
         self.stdout.write(self.style.SUCCESS(f"✅ Stammdaten-Synchronisation für '{db_alias}' erfolgreich abgeschlossen!\n"))

@@ -1096,6 +1096,20 @@ document.addEventListener('alpine:init', () => {
                        hx-swap="innerHTML"
                        class="form-control">
             </div>
+            {% if domain_categories %}
+            <select name="domain_category"
+                    class="form-select form-select-sm w-auto"
+                    hx-get="{% url 'core:list_detail' bucket.id %}"
+                    hx-trigger="change"
+                    hx-target="#item-list"
+                    hx-swap="innerHTML"
+                    title="Nach Kategorie filtern">
+                <option value="">Alle Kategorien</option>
+                {% for dcat in domain_categories %}
+                <option value="{{ dcat.id }}">{{ dcat.name }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
 
             <div class="btn-group btn-group-sm" role="group" aria-label="Ansicht wechseln"
                  x-data="{ layoutMode: '{{ ui.layout_mode|default:'row'|escapejs }}' }">
