@@ -10,6 +10,7 @@ urlpatterns = [
     path('design-studio/', include('design_studio.urls')),
     path('ops/', include('ops_kit.urls')),
     path('domain/', include('domain_kit.urls')),
+    path('calendar/', include('cal_kit.urls')),
     path('healthz', ops_views.healthz_view, name='healthz'),
     path('healthz/', ops_views.healthz_view, name='healthz_slash'),
     path('', include('pwa.urls')),

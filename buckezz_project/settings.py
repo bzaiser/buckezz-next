@@ -79,6 +79,7 @@ INSTALLED_APPS = [
     'grid_kit',
     'seed_kit',
     'domain_kit',
+    'cal_kit',
     'ops_kit',
     
     # Local apps
@@ -223,13 +224,16 @@ EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default=env('EMAIL_HOST_USER', default='Buckezz <noreply@buckezz.app>'))
 
+# Calendar Kit Provider
+CAL_KIT_EVENT_PROVIDERS = ['core.calendar_provider.get_buckezz_calendar_events']
+
 # Design Studio & Baukasten Navigation
 OPS_GITHUB_REPO = "bzaiser/buckezz-next"
 DESIGN_STUDIO_APP_NAME = env('DESIGN_STUDIO_APP_NAME', default='Buckezz 2.0')
 DESIGN_STUDIO_APP_ICON = 'bi-bucket'
 DESIGN_STUDIO_MENU_ITEMS = [
     {"id": "home", "url_name": "core:dashboard", "match_urls": ["dashboard", "list_detail", "list_create", "home"], "default_label": "Buckets", "icon": "bi-bucket", "zone": "main", "display": "icon_text", "visible": True, "order": 1},
-    {"id": "calendar", "url_name": "core:calendar", "match_urls": ["calendar"], "default_label": "Kalender", "icon": "bi-calendar3", "zone": "main", "display": "icon_text", "visible": True, "order": 2},
+    {"id": "calendar", "url_name": "cal_kit:calendar", "match_urls": ["calendar"], "default_label": "Kalender", "icon": "bi-calendar3", "zone": "main", "display": "icon_text", "visible": True, "order": 2},
     {"id": "template_studio", "url_name": "core:template_studio", "match_urls": ["template_studio", "template_studio_create", "template_studio_edit"], "default_label": "Vorlagen-Studio", "icon": "bi-ui-checks-grid", "zone": "main", "display": "icon_text", "visible": True, "order": 3, "staff_only": True},
     {"id": "settings", "url_name": "core:settings", "match_urls": ["settings"], "default_label": "Einstellungen", "icon": "bi-gear", "zone": "utility", "display": "icon_only", "visible": True, "order": 1, "locked": True},
     {"id": "django_admin", "url_name": "admin:index", "url": "/admin/", "match_urls": [], "default_label": "Django Admin", "icon": "bi-shield-lock", "zone": "utility", "display": "icon_only", "visible": True, "order": 3, "staff_only": True},

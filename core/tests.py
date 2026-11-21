@@ -104,7 +104,9 @@ class BuckezzRegressionTests(TestCase):
     def test_calendar_and_settings_views(self):
         self.client.force_login(self.user)
         cal_resp = self.client.get(reverse('core:calendar'))
-        self.assertEqual(cal_resp.status_code, 200)
+        self.assertIn(cal_resp.status_code, [200, 302])
+        cal_kit_resp = self.client.get(reverse('cal_kit:calendar'))
+        self.assertEqual(cal_kit_resp.status_code, 200)
 
         settings_resp = self.client.get(reverse('core:settings'))
         self.assertEqual(settings_resp.status_code, 200)
