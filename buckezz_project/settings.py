@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     # Baukasten kits
     'grid_kit',
     'seed_kit',
+    'domain_kit',
     'ops_kit',
     
     # Local apps
