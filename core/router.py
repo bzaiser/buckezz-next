@@ -62,6 +62,8 @@ class TenantRouter:
             target_db = register_tenant_db(active_tenant)
             if (not db1 or db1 == target_db) and (not db2 or db2 == target_db):
                 return True
+        elif not db1 or not db2:
+            return True
         return None
 
     def allow_migrate(self, db, app_label, model_name=None, **hints):
