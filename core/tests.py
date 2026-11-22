@@ -44,6 +44,19 @@ class BuckezzRegressionTests(TestCase):
         self.assertContains(resp, 'Buckezz-Launcher')
         self.assertContains(resp, 'Wocheneinkauf')
 
+    def test_create_bucket_get_and_post(self):
+        self.client.force_login(self.user)
+        get_resp = self.client.get(reverse('core:list_create'))
+        self.assertEqual(get_resp.status_code, 200)
+        self.assertContains(get_resp, 'Neuen Bucket erstellen')
+
+        post_resp = self.client.post(reverse('core:list_create'), {
+            'category_id': self.category.id,
+            'title': 'Neuer Testbucket',
+        })
+        self.assertEqual(post_resp.status_code, 302)
+        self.assertTrue(BucketList.objects.filter(title='Neuer Testbucket').exists())
+
     def test_home_view_authenticated_with_start(self):
         self.client.force_login(self.user)
         resp = self.client.get(reverse('core:home') + '?start=1')

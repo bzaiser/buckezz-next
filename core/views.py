@@ -424,6 +424,10 @@ class DashboardView(LoginRequiredMixin, ListView):
         return context
 
 class CreateBucketView(LoginRequiredMixin, View):
+    def get(self, request):
+        categories = ListCategory.objects.all().order_by('name')
+        return render(request, 'core/bucket_create.html', {'categories': categories})
+
     def post(self, request):
         category_id = request.POST.get('category_id')
         title = request.POST.get('title')
