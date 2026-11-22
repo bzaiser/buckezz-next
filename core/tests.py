@@ -888,3 +888,11 @@ class BuckezzRegressionTests(TestCase):
 
             mock_qs.exists.return_value = True
             self.assertIsNone(notify_user_safe(user, 'Freigabe', 'Geteilt', link='/list/1/', topic='buckezz.shared', deduplicate_unread=True))
+
+    def test_send_reminders_tenant_filter_and_isolation(self):
+        import io
+        from django.core.management import call_command
+
+        out = io.StringIO()
+        call_command('send_reminders', tenant='nonexistent_tenant', stdout=out)
+        self.assertIn('nicht gefunden', out.getvalue())
