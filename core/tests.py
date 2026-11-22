@@ -913,7 +913,7 @@ class BuckezzRegressionTests(TestCase):
             'new_password1': 'NewPassword456!',
             'new_password2': 'NewPassword456!',
         })
-        self.assertRedirects(resp, reverse('core:settings'))
+        self.assertRedirects(resp, reverse('core:settings'), target_status_code=302)
         user.refresh_from_db()
         person = Person.objects.get(user=user)
         self.assertEqual(user.email, 'bernd@example.com')
