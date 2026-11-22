@@ -72,7 +72,42 @@
 {% elif field_key == 'use_persons' and item.person_roles.exists and not is_beneficiary %}
     <div class="d-flex flex-wrap align-items-center gap-1">
         {% for role in item.person_roles.all %}
-            <span class="badge {% if role.role_badge_style %}text-white{% else %}text-bg-secondary{% endif %} d-inline-flex align-items-center gap-1" {% if role.role_badge_style %}style="{{ role.role_badge_style }}"{% endif %}>{% if role.person.avatar_url %}<img src="{{ role.person.avatar_url }}" alt="{{ role.person.name }}" class="rounded-circle object-fit-cover" width="16" height="16">{% endif %}{{ role.person.name }} ({{ role.role_label }})</span>
+            {% if role.person.phone or role.person.email %}
+            <span class="badge text-bg-secondary d-inline-flex align-items-center gap-1">
+                {% if role.person.avatar_url %}<img src="{{ role.person.avatar_url }}" alt="{{ role.person.name }}" class="rounded-circle object-fit-cover" width="16" height="16">{% else %}<i class="bi bi-person"></i>{% endif %}{{ role.person.name }}:
+                {% if role.person.phone %}
+                    <a href="tel:{{ role.person.phone }}" class="text-reset text-decoration-none" title="Anrufen"><i class="bi bi-telephone"></i></a>
+                    <a href="https://wa.me/{{ role.person.phone|cut:' '|cut:'+'|cut:'-' }}" target="_blank" class="text-reset text-decoration-none" title="WhatsApp">WA</a>
+                {% endif %}
+                {% if role.person.email %}
+                    <a href="mailto:{{ role.person.email }}" class="text-reset text-decoration-none" title="E-Mail"><i class="bi bi-envelope"></i></a>
+                {% endif %}
+            </span>
+            {% endif %}
+
+            {% if bucket.owner == request.user or current_person and role.person_id == current_person.id %}
+                {% if not bucket.is_secret_santa %}
+                <select name="role"
+                        hx-post="{% url 'core:cycle_person_role' role.id %}"
+                        hx-target="#item-list"
+                        hx-swap="innerHTML"
+                        class="form-select form-select-sm w-auto py-0"
+                        {% if role.role_badge_style %}style="border-left: 4px solid var(--app-primary);"{% endif %}>
+                    {% for r in bucket.category.template.get_effective_roles %}
+                    <option value="{{ r.key }}" {% if role.role == r.key %}selected{% endif %}>{{ role.person.name }} ({{ r.label }})</option>
+                    {% endfor %}
+                    <option value="delete">Zuweisung löschen</option>
+                </select>
+                {% else %}
+                <button type="button" class="badge {% if role.role_badge_style %}text-white{% else %}text-bg-info{% endif %} border-0 d-inline-flex align-items-center gap-1" {% if role.role_badge_style %}style="{{ role.role_badge_style }}"{% endif %} title="Klicken um Status zu ändern" hx-post="{% url 'core:cycle_person_role' role.id %}" hx-target="#item-list" hx-swap="innerHTML">
+                    {% if role.person.avatar_url %}<img src="{{ role.person.avatar_url }}" alt="{{ role.person.name }}" class="rounded-circle object-fit-cover" width="16" height="16">{% endif %}{{ role.person.name }} ({{ role.role_label }})
+                </button>
+                {% endif %}
+            {% else %}
+            <span class="badge {% if role.role_badge_style %}text-white{% else %}text-bg-secondary{% endif %} d-inline-flex align-items-center gap-1" {% if role.role_badge_style %}style="{{ role.role_badge_style }}"{% endif %} title="Rolle: {{ role.role_label }}">
+                {% if role.person.avatar_url %}<img src="{{ role.person.avatar_url }}" alt="{{ role.person.name }}" class="rounded-circle object-fit-cover" width="16" height="16">{% endif %}{{ role.person.name }} ({{ role.role_label }})
+            </span>
+            {% endif %}
         {% endfor %}
     </div>
 {% elif field_key == 'use_amount' and bucket.category.template.use_amount %}

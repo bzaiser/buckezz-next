@@ -336,12 +336,13 @@ class BuckezzRegressionTests(TestCase):
 
     def test_card_layout_and_hidden_custom_fields(self):
         import json
+        from core.models import Person, ItemPersonRole
         staff = User.objects.create_user(username='layout_admin', password='secret', is_staff=True)
         self.client.force_login(staff)
 
         card_layout = {
             'header': ['use_brand'],
-            'body': ['cf:autor'],
+            'body': ['cf:autor', 'use_persons'],
             'footer': ['use_price'],
             'hidden': ['cf:intern'],
         }
@@ -351,6 +352,7 @@ class BuckezzRegressionTests(TestCase):
             'logic_type': 'generic',
             'use_brand': 'on',
             'use_price': 'on',
+            'use_persons': 'on',
             'cf_key': ['autor', 'intern'],
             'cf_label': ['Autor', 'Interne Notiz'],
             'cf_type': ['text', 'text'],
@@ -369,7 +371,7 @@ class BuckezzRegressionTests(TestCase):
         self.assertFalse(cat.template.custom_fields_json[1]['show_on_card'])
 
         bucket = BucketList.objects.create(title='Leseliste', category=cat, owner=staff)
-        ListItem.objects.create(
+        item = ListItem.objects.create(
             bucket_list=bucket,
             title='Der Schwarm',
             brand='Heyne',
@@ -377,10 +379,13 @@ class BuckezzRegressionTests(TestCase):
             custom_data_json={'autor': 'Frank Schätzing', 'intern': 'Geheimcode 123'},
             created_by=staff,
         )
+        bernd = Person.objects.create(name='Bernd')
+        role = ItemPersonRole.objects.create(item=item, person=bernd, role='responsible')
         detail_resp = self.client.get(reverse('core:list_detail', args=[bucket.id]))
         self.assertEqual(detail_resp.status_code, 200)
         self.assertContains(detail_resp, 'Heyne')
         self.assertContains(detail_resp, 'Frank Schätzing')
+        self.assertContains(detail_resp, f'hx-post="{reverse("core:cycle_person_role", args=[role.id])}"')
         self.assertNotContains(detail_resp, 'Geheimcode 123')
 
     def test_custom_person_role_completes_item(self):
