@@ -63,6 +63,13 @@ class Command(BaseCommand):
                 # Prepend tenant subdomain (e.g. 'simon.zaisers.myds.me')
                 tenant_base_url = f"{scheme}://{tenant.slug}.{netloc}"
 
+            # Kalender-Erinnerungen (cal_kit) für diesen Mandanten prüfen
+            try:
+                from django.core.management import call_command
+                call_command('cal_send_reminders', stdout=self.stdout)
+            except Exception:
+                pass
+
             # Query the active tenant's database for due items
             items = ListItem.objects.filter(
                 reminder_at__lte=now,
