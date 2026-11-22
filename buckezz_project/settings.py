@@ -1,3 +1,4 @@
+import importlib.util
 import os
 import sys
 import environ
@@ -76,12 +77,12 @@ INSTALLED_APPS = [
     'django_extensions',
     
     # Baukasten kits
-    'auth_kit',
     'grid_kit',
     'seed_kit',
     'domain_kit',
-    'cal_kit',
-    'notify_kit',
+    *(["cal_kit"] if importlib.util.find_spec("cal_kit") is not None else []),
+    *(["notify_kit"] if importlib.util.find_spec("notify_kit") is not None else []),
+    *(["auth_kit"] if importlib.util.find_spec("auth_kit") is not None else []),
     'ops_kit',
     
     # Local apps
