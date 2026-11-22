@@ -1,7 +1,7 @@
 {% load l10n %}
-<div id="item-form-container" class="modal d-block show bg-dark bg-opacity-75 p-2 p-sm-3" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-lg mw-100 mx-auto modal-dialog-scrollable">
-        <form class="modal-content rounded-4 shadow"
+<div id="item-form-container" class="modal d-block show bg-dark bg-opacity-75" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <form class="modal-content rounded-4 shadow w-100 overflow-hidden"
               hx-post="{% if item %}{% url 'core:edit_item' item.id %}{% else %}{% url 'core:add_item' bucket.id %}{% endif %}"
               hx-target="#item-list"
               hx-swap="innerHTML"
@@ -24,7 +24,7 @@
             </script>
             {% endif %}
 
-                <div class="modal-body d-flex flex-column gap-3">
+                <div class="modal-body d-flex flex-column gap-3 min-w-0 overflow-x-hidden">
                     <div>
                         <label class="form-label fw-semibold">Titel / Bezeichnung</label>
                         <input type="text" name="title" value="{{ item.title|default:'' }}" required class="form-control" autofocus>
