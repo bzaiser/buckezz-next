@@ -863,9 +863,10 @@ class BuckezzRegressionTests(TestCase):
         from core.notifications import notify_user_safe, register_buckezz_topics
 
         user = User.objects.create_user(username='notif_user', password='secret')
-        # Safe when notify_kit is not installed
-        self.assertIsNone(notify_user_safe(user, 'Test', 'Nachricht', topic='buckezz.shared'))
         self.assertIsNone(notify_user_safe(None, 'Test'))
+        # Graceful fallback when notify_kit is unavailable
+        with patch.dict('sys.modules', {'notify_kit.services': None}):
+            self.assertIsNone(notify_user_safe(user, 'Test', 'Nachricht', topic='buckezz.shared'))
 
         mock_notify = MagicMock(return_value='ok')
         mock_reg = MagicMock()
