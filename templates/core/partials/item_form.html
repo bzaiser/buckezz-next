@@ -602,7 +602,55 @@
                         const form = modal.querySelector('form');
                         const warnBox = document.getElementById('form-plausibility-warnings');
                         const warnList = warnBox ? warnBox.querySelector('ul') : null;
-                        if (!form || !warnBox || !warnList) return;
+                        if (!form) return;
+
+                        function pad2(n) { return String(n).padStart(2, '0'); }
+                        function currentHHMM(offsetMinutes) {
+                            const d = new Date(Date.now() + (offsetMinutes || 0) * 60000);
+                            return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+                        }
+                        function toLocalDt(d) {
+                            return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+                        }
+                        function fixZeroTime(inp, offsetMinutes) {
+                            if (!inp || !inp.value) return;
+                            const prev = inp.dataset.prevVal || '';
+                            const parts = inp.value.split('T');
+                            if (parts.length === 2 && parts[1] === '00:00') {
+                                const prevParts = prev.split('T');
+                                if (!prev || prevParts[0] !== parts[0] || prevParts[1] === '00:00') {
+                                    inp.value = parts[0] + 'T' + currentHHMM(offsetMinutes);
+                                }
+                            }
+                            inp.dataset.prevVal = inp.value;
+                        }
+                        const startDtEl = form.querySelector('[name="start_date"]');
+                        const endDtEl = form.querySelector('[name="end_date"]');
+                        const remDtEl = form.querySelector('[name="reminder_at"]');
+                        [startDtEl, endDtEl, remDtEl].forEach(el => {
+                            if (el) el.dataset.prevVal = el.value || '';
+                        });
+                        if (startDtEl) {
+                            ['input', 'change'].forEach(evName => startDtEl.addEventListener(evName, function() {
+                                fixZeroTime(startDtEl, 0);
+                                if (endDtEl && startDtEl.value) {
+                                    const sDate = new Date(startDtEl.value);
+                                    const eDate = endDtEl.value ? new Date(endDtEl.value) : null;
+                                    if (!isNaN(sDate.getTime()) && (!eDate || isNaN(eDate.getTime()) || eDate <= sDate || endDtEl.value.slice(-5) === '00:00')) {
+                                        endDtEl.value = toLocalDt(new Date(sDate.getTime() + 3600000));
+                                        endDtEl.dataset.prevVal = endDtEl.value;
+                                    }
+                                }
+                            }));
+                        }
+                        if (endDtEl) {
+                            ['input', 'change'].forEach(evName => endDtEl.addEventListener(evName, () => fixZeroTime(endDtEl, 60)));
+                        }
+                        if (remDtEl) {
+                            ['input', 'change'].forEach(evName => remDtEl.addEventListener(evName, () => fixZeroTime(remDtEl, 0)));
+                        }
+
+                        if (!warnBox || !warnList) return;
 
                         const statusMeta = {
                             {% for st in bucket.category.template.get_effective_statuses %}
