@@ -856,3 +856,34 @@ class BuckezzRegressionTests(TestCase):
         self.assertIn(expected_url, search_html)
         self.assertNotIn('/admin/core/listitem/', search_html)
         self.assertIn('In Liste öffnen', search_html)
+
+    def test_notify_kit_helpers_and_graceful_fallback(self):
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock, patch
+        from core.notifications import notify_user_safe, register_buckezz_topics
+
+        user = User.objects.create_user(username='notif_user', password='secret')
+        # Safe when notify_kit is not installed
+        self.assertIsNone(notify_user_safe(user, 'Test', 'Nachricht', topic='buckezz.shared'))
+        self.assertIsNone(notify_user_safe(None, 'Test'))
+
+        mock_notify = MagicMock(return_value='ok')
+        mock_reg = MagicMock()
+        mock_qs = MagicMock()
+        mock_qs.filter.return_value = mock_qs
+        mock_qs.exists.return_value = False
+        mock_notif_cls = SimpleNamespace(objects=SimpleNamespace(filter=MagicMock(return_value=mock_qs)))
+        with patch.dict('sys.modules', {
+            'notify_kit': SimpleNamespace(),
+            'notify_kit.registry': SimpleNamespace(register_notification_topic=mock_reg),
+            'notify_kit.services': SimpleNamespace(notify=mock_notify),
+            'notify_kit.models': SimpleNamespace(Notification=mock_notif_cls),
+        }):
+            register_buckezz_topics()
+            self.assertEqual(mock_reg.call_count, 4)
+            res = notify_user_safe(user, 'Freigabe', 'Geteilt', level='info', link='/list/1/', topic='buckezz.shared', deduplicate_unread=True)
+            self.assertEqual(res, 'ok')
+            mock_notify.assert_called_once()
+
+            mock_qs.exists.return_value = True
+            self.assertIsNone(notify_user_safe(user, 'Freigabe', 'Geteilt', link='/list/1/', topic='buckezz.shared', deduplicate_unread=True))

@@ -707,7 +707,17 @@ class BucketListDetailView(DetailView):
             if genre_def:
                 context['active_genre'] = genre_def
         context['kpi_summary'] = _compute_kpi_summary(tpl, active_items, completed_items)
-        context['item_alerts'] = _collect_item_alerts(tpl, active_items, completed_items)
+        item_alerts = _collect_item_alerts(tpl, active_items, completed_items)
+        context['item_alerts'] = item_alerts
+        if bucket.owner_id and item_alerts:
+            from core.notifications import notify_user_safe
+            list_link = f"/list/{bucket.id}/"
+            for al in item_alerts:
+                txt = al.get('text', '')
+                if txt.startswith('Überfällig'):
+                    notify_user_safe(bucket.owner, f"Überfällig: {bucket.title}", txt, level="danger", link=list_link, topic="buckezz.overdue", deduplicate_unread=True)
+                elif txt.startswith('Niedriger Vorrat'):
+                    notify_user_safe(bucket.owner, f"Niedriger Vorrat: {bucket.title}", txt, level="warning", link=list_link, topic="buckezz.low_stock", deduplicate_unread=True)
         context['is_beneficiary'] = is_beneficiary
         context['current_person'] = current_person
         context['people'] = Person.objects.select_related('domain_person').order_by('name')
@@ -914,8 +924,22 @@ class BucketListConfigureView(LoginRequiredMixin, View):
         bucket.beneficiary = Person.objects.filter(id=ben_id).first() if ben_id else None
         bucket.save()
 
+        prev_shared_ids = set(bucket.shared_with.values_list('id', flat=True))
         shared_ids = [uid for uid in request.POST.getlist('shared_with') if uid.isdigit()]
-        bucket.shared_with.set(User.objects.filter(id__in=shared_ids).exclude(id=bucket.owner_id))
+        new_shared_users = list(User.objects.filter(id__in=shared_ids).exclude(id=bucket.owner_id))
+        bucket.shared_with.set(new_shared_users)
+
+        from core.notifications import notify_user_safe
+        for su in new_shared_users:
+            if su.id not in prev_shared_ids:
+                notify_user_safe(
+                    user=su,
+                    title=f"Liste freigegeben: {bucket.title}",
+                    message=f"{request.user.username} hat die Liste „{bucket.title}“ mit dir geteilt.",
+                    level="info",
+                    link=f"/list/{bucket.id}/",
+                    topic="buckezz.shared",
+                )
 
         messages.success(request, f"Einstellungen für „{bucket.title}“ gespeichert.")
         return redirect('core:list_detail', pk=bucket.id)
@@ -1552,6 +1576,16 @@ class CyclePersonRoleView(View):
             elif new_role and new_role in allowed_keys:
                 role.role = new_role
                 role.save()
+                if role.person.user and role.person.user != request.user:
+                    from core.notifications import notify_user_safe
+                    notify_user_safe(
+                        user=role.person.user,
+                        title=f"Rolle geändert: {role.item.title}",
+                        message=f"Neuer Status in „{bucket.title}“: {role.role_label}",
+                        level="info",
+                        link=f"/list/{bucket.id}/#item-{role.item.id}",
+                        topic="buckezz.shared",
+                    )
                 if role.role in completing_keys:
                     role.item.is_completed = True
                     role.item.save()
@@ -1612,6 +1646,16 @@ class ToggleReservationView(View):
         else:
             role.role = 'reserved'
             role.save()
+            if bucket.owner and bucket.owner != request.user:
+                from core.notifications import notify_user_safe
+                notify_user_safe(
+                    user=bucket.owner,
+                    title=f"Übernommen: {item.title}",
+                    message=f"{person.name} hat „{item.title}“ in „{bucket.title}“ übernommen.",
+                    level="success",
+                    link=f"/list/{bucket.id}/#item-{item.id}",
+                    topic="buckezz.shared",
+                )
             
         if request.htmx:
             return render_item_list(request, bucket, True)

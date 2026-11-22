@@ -89,6 +89,25 @@ class Command(BaseCommand):
                     f'Dein Buckezz Team'
                 )
                 
+                # In-App-Benachrichtigungen über notify_kit (falls installiert)
+                from core.notifications import notify_user_safe
+                notify_users = set()
+                if item.bucket_list.owner:
+                    notify_users.add(item.bucket_list.owner)
+                for role in item.person_roles.all():
+                    if role.person.user:
+                        notify_users.add(role.person.user)
+                rel_link = f"/list/{item.bucket_list.id}/#item-{item.id}"
+                for u in notify_users:
+                    notify_user_safe(
+                        user=u,
+                        title=f"Erinnerung: {item.title}",
+                        message=f"Fällig in Liste „{item.bucket_list.title}“",
+                        level="warning",
+                        link=rel_link,
+                        topic="buckezz.reminder",
+                    )
+
                 # Collect recipient emails
                 recipients = set()
                 if item.bucket_list.owner.email:
@@ -109,4 +128,7 @@ class Command(BaseCommand):
                     except Exception as e:
                         self.stdout.write(self.style.ERROR(f'Fehler beim Senden der Erinnerung für "{item.title}": {str(e)}'))
                 else:
-                    self.stdout.write(self.style.WARNING(f'Übersprungen: Es konnte kein Empfänger (weder Listenbesitzer noch zugewiesene Personen) mit E-Mail-Adresse für "{item.title}" gefunden werden.'))
+                    if notify_users:
+                        item.reminder_sent = True
+                        item.save()
+                    self.stdout.write(self.style.WARNING(f'Übersprungen (E-Mail): Kein Empfänger mit E-Mail-Adresse für "{item.title}" gefunden.'))
