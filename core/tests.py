@@ -115,7 +115,7 @@ class BuckezzRegressionTests(TestCase):
         post_resp = self.client.post(reverse('core:settings'), {
             'timezone': 'Europe/Berlin',
         })
-        self.assertRedirects(post_resp, reverse('core:dashboard'))
+        self.assertRedirects(post_resp, reverse('core:settings'))
         self.assertEqual(UserSetting.objects.get(user=self.user).timezone, 'Europe/Berlin')
 
     def test_healthz_endpoint(self):
@@ -896,3 +896,30 @@ class BuckezzRegressionTests(TestCase):
         out = io.StringIO()
         call_command('send_reminders', tenant='nonexistent_tenant', stdout=out)
         self.assertIn('nicht gefunden', out.getvalue())
+
+    def test_profile_settings_updates_user_person_and_password(self):
+        from core.models import Person
+        user = User.objects.create_user(username='prof_user', password='OldPassword123!')
+        self.client.force_login(user)
+
+        resp = self.client.post(reverse('core:settings'), {
+            'email': 'bernd@example.com',
+            'display_name': 'Bernd Zaiser',
+            'first_name': 'Bernd',
+            'last_name': 'Zaiser',
+            'phone': '+49 170 123456',
+            'timezone': 'Europe/Berlin',
+            'current_password': 'OldPassword123!',
+            'new_password1': 'NewPassword456!',
+            'new_password2': 'NewPassword456!',
+        })
+        self.assertRedirects(resp, reverse('core:settings'))
+        user.refresh_from_db()
+        person = Person.objects.get(user=user)
+        self.assertEqual(user.email, 'bernd@example.com')
+        self.assertEqual(user.first_name, 'Bernd')
+        self.assertEqual(user.last_name, 'Zaiser')
+        self.assertTrue(user.check_password('NewPassword456!'))
+        self.assertEqual(person.name, 'Bernd Zaiser')
+        self.assertEqual(person.email, 'bernd@example.com')
+        self.assertEqual(person.phone, '+49 170 123456')

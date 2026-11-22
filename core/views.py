@@ -1736,18 +1736,65 @@ class ThemeSettingsView(LoginRequiredMixin, View):
         settings.gym_body_measurements_json = measurements
         
         settings.save()
-        
-        # Save birth date
-        birth_date = request.POST.get('birth_date')
+
+        # Konto- & Kontaktdaten auf User und Person speichern
+        from django.contrib.auth import update_session_auth_hash
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError
+        from django.core.validators import validate_email
         from core.models import Person
-        person, _ = Person.objects.get_or_create(user=request.user, defaults={'name': request.user.username})
-        if birth_date:
-            person.birth_date = birth_date
+
+        user = request.user
+        raw_email = (request.POST.get('email') or '').strip()
+        if raw_email:
+            try:
+                validate_email(raw_email)
+                user.email = raw_email
+            except ValidationError:
+                messages.error(request, "Bitte gib eine gültige E-Mail-Adresse ein.")
+                return redirect('core:settings')
         else:
-            person.birth_date = None
+            user.email = ''
+
+        user.first_name = (request.POST.get('first_name') or '').strip()[:150]
+        user.last_name = (request.POST.get('last_name') or '').strip()[:150]
+        user.save(update_fields=['email', 'first_name', 'last_name'])
+
+        person, _ = Person.objects.get_or_create(user=user, defaults={'name': user.username})
+        display_name = (request.POST.get('display_name') or '').strip()[:100]
+        if display_name:
+            person.name = display_name
+        elif user.get_full_name().strip():
+            person.name = user.get_full_name().strip()[:100]
+        person.email = user.email or None
+        person.phone = (request.POST.get('phone') or '').strip()[:50] or None
+
+        birth_date = request.POST.get('birth_date')
+        person.birth_date = birth_date if birth_date else None
         person.save()
-        
-        return redirect('core:dashboard')
+
+        # Optionale Passwort-Änderung
+        new_pw1 = request.POST.get('new_password1') or ''
+        new_pw2 = request.POST.get('new_password2') or ''
+        cur_pw = request.POST.get('current_password') or ''
+        if new_pw1 or new_pw2:
+            if not user.check_password(cur_pw):
+                messages.error(request, "Das aktuelle Passwort ist nicht korrekt.")
+                return redirect('core:settings')
+            if new_pw1 != new_pw2:
+                messages.error(request, "Die neuen Passwörter stimmen nicht überein.")
+                return redirect('core:settings')
+            try:
+                validate_password(new_pw1, user=user)
+            except ValidationError as exc:
+                messages.error(request, " ".join(exc.messages))
+                return redirect('core:settings')
+            user.set_password(new_pw1)
+            user.save()
+            update_session_auth_hash(request, user)
+
+        messages.success(request, "Profil & Einstellungen gespeichert.")
+        return redirect('core:settings')
 
 from django.http import JsonResponse
 class WorkoutLogSessionView(View):
