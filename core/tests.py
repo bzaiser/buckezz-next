@@ -41,7 +41,7 @@ class BuckezzRegressionTests(TestCase):
         self.client.force_login(self.user)
         resp = self.client.get(reverse('core:home'))
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, 'Buckezz-Launcher')
+        self.assertContains(resp, 'Schnellzugriff: Deine Buckets')
         self.assertContains(resp, 'Wocheneinkauf')
 
     def test_create_bucket_get_and_post(self):
