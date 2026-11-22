@@ -13,4 +13,5 @@ https://github.com/bzaiser/grid-django-kit/archive/refs/heads/main.zip
 https://github.com/bzaiser/seed-django-kit/archive/refs/heads/main.zip
 https://github.com/bzaiser/domain-django-kit/archive/refs/heads/main.zip
 https://github.com/bzaiser/cal-django-kit/archive/refs/heads/main.zip
+https://github.com/bzaiser/notify-django-kit/archive/refs/heads/main.zip
 https://github.com/bzaiser/ops-django-kit/archive/refs/heads/main.zip

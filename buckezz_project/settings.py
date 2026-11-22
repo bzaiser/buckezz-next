@@ -80,6 +80,7 @@ INSTALLED_APPS = [
     'seed_kit',
     'domain_kit',
     'cal_kit',
+    'notify_kit',
     'ops_kit',
     
     # Local apps
