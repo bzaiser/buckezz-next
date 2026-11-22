@@ -1663,6 +1663,13 @@ class ToggleReservationView(View):
 
 class ThemeSettingsView(LoginRequiredMixin, View):
     def get(self, request):
+        from django.apps import apps as django_apps
+        if django_apps.is_installed('auth_kit'):
+            tab = (request.GET.get('tab') or '').strip()
+            target = reverse('auth_kit:profile')
+            if tab in ('app', 'design', 'updates'):
+                return redirect(f"{target}?tab={tab}")
+            return redirect(target)
         settings, _ = UserSetting.objects.get_or_create(user=request.user)
         from core.models import Person
         person, _ = Person.objects.get_or_create(user=request.user, defaults={'name': request.user.username})
@@ -1794,6 +1801,10 @@ class ThemeSettingsView(LoginRequiredMixin, View):
             update_session_auth_hash(request, user)
 
         messages.success(request, "Profil & Einstellungen gespeichert.")
+        if request.POST.get('next_tab') == 'app':
+            from django.apps import apps as django_apps
+            if django_apps.is_installed('auth_kit'):
+                return redirect(f"{reverse('auth_kit:profile')}?tab=app")
         return redirect('core:settings')
 
 from django.http import JsonResponse

@@ -108,14 +108,14 @@ class BuckezzRegressionTests(TestCase):
         cal_kit_resp = self.client.get(reverse('cal_kit:calendar'))
         self.assertEqual(cal_kit_resp.status_code, 200)
 
-        settings_resp = self.client.get(reverse('core:settings'))
+        settings_resp = self.client.get(reverse('core:settings'), follow=True)
         self.assertEqual(settings_resp.status_code, 200)
         self.assertNotContains(settings_resp, 'Erweiterte Farbwerte')
 
         post_resp = self.client.post(reverse('core:settings'), {
             'timezone': 'Europe/Berlin',
-        })
-        self.assertRedirects(post_resp, reverse('core:settings'))
+        }, follow=True)
+        self.assertEqual(post_resp.status_code, 200)
         self.assertEqual(UserSetting.objects.get(user=self.user).timezone, 'Europe/Berlin')
 
     def test_healthz_endpoint(self):
@@ -923,3 +923,32 @@ class BuckezzRegressionTests(TestCase):
         self.assertEqual(person.name, 'Bernd Zaiser')
         self.assertEqual(person.email, 'bernd@example.com')
         self.assertEqual(person.phone, '+49 170 123456')
+
+    def test_auth_kit_profile_with_app_tab_and_sync(self):
+        from core.models import Person
+        user = User.objects.create_user(username='ak_user', password='secret')
+        self.client.force_login(user)
+
+        resp = self.client.get(reverse('auth_kit:profile'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'App-Einstellungen')
+        self.assertContains(resp, 'id="pane-app"')
+
+        post_resp = self.client.post(reverse('auth_kit:profile'), {
+            'display_name': 'Anna Test',
+            'email': 'anna@example.com',
+            'first_name': 'Anna',
+            'last_name': 'Test',
+            'phone': '+49 171 999888',
+            'timezone': 'Europe/Vienna',
+            'language': 'de',
+            'avatar_color': '#0d6efd',
+            'bio': '',
+            'notify_email': 'on',
+        })
+        self.assertRedirects(post_resp, reverse('auth_kit:profile'))
+        person = Person.objects.get(user=user)
+        self.assertEqual(person.name, 'Anna Test')
+        self.assertEqual(person.email, 'anna@example.com')
+        self.assertEqual(person.phone, '+49 171 999888')
+        self.assertEqual(UserSetting.objects.get(user=user).timezone, 'Europe/Vienna')

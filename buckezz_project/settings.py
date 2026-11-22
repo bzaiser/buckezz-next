@@ -76,6 +76,7 @@ INSTALLED_APPS = [
     'django_extensions',
     
     # Baukasten kits
+    'auth_kit',
     'grid_kit',
     'seed_kit',
     'domain_kit',
@@ -242,11 +243,13 @@ DOMAIN_SEARCH_PROVIDERS = ['core.search_provider.search_buckezz']
 OPS_GITHUB_REPO = "bzaiser/buckezz-next"
 DESIGN_STUDIO_APP_NAME = env('DESIGN_STUDIO_APP_NAME', default='Buckezz 2.0')
 DESIGN_STUDIO_APP_ICON = 'bi-bucket'
+AUTH_KIT_APP_TAB_LABEL = 'App-Einstellungen'
+AUTH_KIT_APP_TAB_CONTEXT = 'core.auth_sync.get_app_settings_context'
 DESIGN_STUDIO_MENU_ITEMS = [
     {"id": "home", "url_name": "core:dashboard", "match_urls": ["dashboard", "list_detail", "list_create", "home"], "default_label": "Buckets", "icon": "bi-bucket", "zone": "main", "display": "icon_text", "visible": True, "order": 1},
     {"id": "calendar", "url_name": "cal_kit:calendar", "match_urls": ["calendar"], "default_label": "Kalender", "icon": "bi-calendar3", "zone": "main", "display": "icon_text", "visible": True, "order": 2},
     {"id": "template_studio", "url_name": "core:template_studio", "match_urls": ["template_studio", "template_studio_create", "template_studio_edit"], "default_label": "Vorlagen-Studio", "icon": "bi-ui-checks-grid", "zone": "main", "display": "icon_text", "visible": True, "order": 3, "staff_only": True},
-    {"id": "settings", "url_name": "core:settings", "match_urls": ["settings"], "default_label": "Einstellungen", "icon": "bi-gear", "zone": "utility", "display": "icon_only", "visible": True, "order": 1, "locked": True},
+    {"id": "settings", "url_name": "auth_kit:profile", "match_urls": ["profile", "password_change", "settings"], "default_label": "Profil & Einstellungen", "icon": "bi-person-circle", "zone": "utility", "display": "icon_only", "visible": True, "order": 1, "locked": True},
     {"id": "django_admin", "url_name": "admin:index", "url": "/admin/", "match_urls": [], "default_label": "Django Admin", "icon": "bi-shield-lock", "zone": "utility", "display": "icon_only", "visible": True, "order": 3, "staff_only": True},
     {"id": "night_mode", "url_name": "design_studio:toggle_night", "match_urls": [], "default_label": "Tag / Nacht", "icon": "bi-moon-stars", "zone": "utility", "display": "icon_only", "visible": True, "order": 4},
 ]

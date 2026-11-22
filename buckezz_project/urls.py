@@ -15,6 +15,7 @@ urlpatterns = [
 
 try:
     from ops_kit.runtime import get_runtime_urlpatterns, optional_kit_path
+    urlpatterns += optional_kit_path('auth_kit', 'account/', 'auth_kit.urls')
     urlpatterns += optional_kit_path('domain_kit', 'domain/', 'domain_kit.urls')
     urlpatterns += optional_kit_path('cal_kit', 'calendar/', 'cal_kit.urls')
     urlpatterns += optional_kit_path('notify_kit', 'notifications/', 'notify_kit.urls')
