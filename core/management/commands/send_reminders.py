@@ -47,40 +47,43 @@ class Command(BaseCommand):
         scheme = parsed_url.scheme or 'https'
         netloc = parsed_url.netloc or 'localhost:8000'
 
-        # Fetch all registered tenants from the registry (default) database
+        # Build targets: ('default' main DB + all registered Tenant DBs)
+        targets = []
+        if not tenant_slug or tenant_slug == 'default':
+            targets.append((None, 'Standard (default)', f"{scheme}://{netloc}"))
+
         tenants = Tenant.objects.using('default').all()
-        if tenant_slug:
+        if tenant_slug and tenant_slug != 'default':
             tenants = tenants.filter(slug=tenant_slug)
-        if not tenants.exists():
-            msg = f'Mandant "{tenant_slug}" nicht gefunden.' if tenant_slug else 'Keine Mandanten (Tenants) in der Registry-Datenbank gefunden.'
-            self.stdout.write(self.style.WARNING(msg))
+        for tenant in tenants:
+            if 'localhost' in netloc or '127.0.0.1' in netloc:
+                t_url = f"{scheme}://{netloc}"
+            elif netloc.startswith('buckezz.'):
+                t_url = f"{scheme}://{tenant.slug}.{netloc[8:]}"
+            else:
+                t_url = f"{scheme}://{tenant.slug}.{netloc}"
+            targets.append((tenant.slug, f"{tenant.name} ({tenant.slug})", t_url))
+
+        if tenant_slug and not targets:
+            self.stdout.write(self.style.WARNING(f'Mandant "{tenant_slug}" nicht gefunden.'))
             return
 
-        self.stdout.write(self.style.SUCCESS(f'Starte Erinnerungen für {tenants.count()} Mandant(en)...'))
+        self.stdout.write(self.style.SUCCESS(f'Starte Erinnerungen für {len(targets)} Datenbank(en)...'))
 
         try:
-            for tenant in tenants:
-                self.stdout.write(self.style.NOTICE(f'\n--- Verarbeite Mandant: {tenant.name} ({tenant.slug}) ---'))
+            for slug, label, tenant_base_url in targets:
+                self.stdout.write(self.style.NOTICE(f'\n--- Verarbeite: {label} ---'))
                 try:
-                    # Switch database context to this tenant
-                    set_active_tenant(tenant.slug)
-
-                    # Build the tenant specific base URL
-                    if 'localhost' in netloc or '127.0.0.1' in netloc:
-                        tenant_base_url = f"{scheme}://{netloc}"
-                    elif netloc.startswith('buckezz.'):
-                        tenant_base_url = f"{scheme}://{tenant.slug}.{netloc[8:]}"
-                    else:
-                        tenant_base_url = f"{scheme}://{tenant.slug}.{netloc}"
+                    set_active_tenant(slug)
 
                     # Kalender-Erinnerungen (cal_kit) für diesen Mandanten prüfen
                     try:
                         from django.core.management import call_command
                         call_command('cal_send_reminders', stdout=self.stdout)
                     except Exception as cal_exc:
-                        self.stderr.write(self.style.WARNING(f'cal_send_reminders Hinweis ({tenant.slug}): {cal_exc}'))
+                        self.stderr.write(self.style.WARNING(f'cal_send_reminders Hinweis ({slug or "default"}): {cal_exc}'))
 
-                    # Query the active tenant's database for due items
+                    # Query the active database for due items
                     items = ListItem.objects.filter(
                         reminder_at__lte=now,
                         is_completed=False,
@@ -89,7 +92,7 @@ class Command(BaseCommand):
 
                     total = items.count()
                     if total == 0:
-                        self.stdout.write(self.style.SUCCESS(f'Keine fälligen Listen-Erinnerungen für "{tenant.slug}" gefunden.'))
+                        self.stdout.write(self.style.SUCCESS(f'Keine fälligen Listen-Erinnerungen für "{slug or "default"}" gefunden.'))
                         continue
 
                     self.stdout.write(f'{total} fällige Erinnerung(en) gefunden. Starte Versand...')
@@ -150,6 +153,6 @@ class Command(BaseCommand):
                                 item.save()
                             self.stdout.write(self.style.WARNING(f'Übersprungen (E-Mail): Kein Empfänger mit E-Mail-Adresse für "{item.title}" gefunden.'))
                 except Exception as tenant_exc:
-                    self.stderr.write(self.style.ERROR(f'Fehler bei Mandant "{tenant.slug}": {tenant_exc}'))
+                    self.stderr.write(self.style.ERROR(f'Fehler bei "{slug or "default"}": {tenant_exc}'))
         finally:
             set_active_tenant(None)
