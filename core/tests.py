@@ -37,10 +37,12 @@ class BuckezzRegressionTests(TestCase):
         resp = self.client.get(reverse('core:home'))
         self.assertEqual(resp.status_code, 200)
 
-    def test_home_view_authenticated_redirects_to_dashboard(self):
+    def test_home_view_authenticated_renders_launcher(self):
         self.client.force_login(self.user)
         resp = self.client.get(reverse('core:home'))
-        self.assertRedirects(resp, reverse('core:dashboard'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Buckezz-Launcher')
+        self.assertContains(resp, 'Wocheneinkauf')
 
     def test_home_view_authenticated_with_start(self):
         self.client.force_login(self.user)

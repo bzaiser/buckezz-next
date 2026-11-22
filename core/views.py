@@ -341,11 +341,6 @@ def _group_items_by_rule(tpl, active_items, completed_items, beneficiary):
 class HomeView(TemplateView):
     template_name = 'core/home.html'
 
-    def get(self, request, *args, **kwargs):
-        if request.user.is_authenticated and 'start' not in request.GET:
-            return redirect('core:dashboard')
-        return super().get(request, *args, **kwargs)
-
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.request.user
@@ -360,6 +355,45 @@ class HomeView(TemplateView):
                 allowed_lists = BucketList.objects.filter(
                     models.Q(owner=user) | models.Q(shared_with=user) | models.Q(participants__person__user=user)
                 ).distinct()
+
+            # Launcher data: counts, quick buckets, due items, today's calendar events
+            from django.utils import timezone
+            from datetime import timedelta
+            now = timezone.now()
+            local_today = timezone.localtime(now).date()
+            day_start = timezone.make_aware(timezone.datetime.combine(local_today, timezone.datetime.min.time()))
+            day_end = day_start + timedelta(days=1)
+
+            context['bucket_count'] = allowed_lists.count()
+            context['quick_buckets'] = (
+                allowed_lists.select_related('category')
+                .annotate(
+                    open_count=models.Count('items', filter=models.Q(items__is_completed=False)),
+                    done_count=models.Count('items', filter=models.Q(items__is_completed=True)),
+                )
+                .order_by('-created_at')[:6]
+            )
+            context['due_items'] = (
+                ListItem.objects.filter(bucket_list__in=allowed_lists, is_completed=False)
+                .filter(models.Q(end_date__lt=day_end) | models.Q(reminder_at__lt=day_end))
+                .select_related('bucket_list')
+                .order_by('end_date', 'reminder_at')[:6]
+            )
+            context['today_events'] = []
+            context['today_events_count'] = 0
+            try:
+                from django.apps import apps as django_apps
+                if django_apps.is_installed('cal_kit'):
+                    from cal_kit.models import CalendarEvent
+                    ev_qs = CalendarEvent.objects.filter(
+                        user=user,
+                        end_at__gte=day_start,
+                        start_at__lt=day_end,
+                    ).order_by('start_at')
+                    context['today_events_count'] = ev_qs.count()
+                    context['today_events'] = list(ev_qs[:6])
+            except Exception:
+                pass
         elif person_id:
             allowed_lists = BucketList.objects.filter(
                 participants__person_id=person_id

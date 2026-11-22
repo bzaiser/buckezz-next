@@ -247,9 +247,10 @@ DESIGN_STUDIO_APP_ICON = 'bi-bucket'
 AUTH_KIT_APP_TAB_LABEL = 'App-Einstellungen'
 AUTH_KIT_APP_TAB_CONTEXT = 'core.auth_sync.get_app_settings_context'
 DESIGN_STUDIO_MENU_ITEMS = [
-    {"id": "home", "url_name": "core:dashboard", "match_urls": ["dashboard", "list_detail", "list_create", "home"], "default_label": "Buckets", "icon": "bi-bucket", "zone": "main", "display": "icon_text", "visible": True, "order": 1},
-    {"id": "calendar", "url_name": "cal_kit:calendar", "match_urls": ["calendar"], "default_label": "Kalender", "icon": "bi-calendar3", "zone": "main", "display": "icon_text", "visible": True, "order": 2},
-    {"id": "template_studio", "url_name": "core:template_studio", "match_urls": ["template_studio", "template_studio_create", "template_studio_edit"], "default_label": "Vorlagen-Studio", "icon": "bi-ui-checks-grid", "zone": "main", "display": "icon_text", "visible": True, "order": 3, "staff_only": True},
+    {"id": "home", "url_name": "core:home", "match_urls": ["home"], "default_label": "Start", "icon": "bi-grid", "zone": "main", "display": "icon_text", "visible": True, "order": 1},
+    {"id": "buckets", "url_name": "core:dashboard", "match_urls": ["dashboard", "list_detail", "list_create"], "default_label": "Buckets", "icon": "bi-bucket", "zone": "main", "display": "icon_text", "visible": True, "order": 2},
+    {"id": "calendar", "url_name": "cal_kit:calendar", "match_urls": ["calendar"], "default_label": "Kalender", "icon": "bi-calendar3", "zone": "main", "display": "icon_text", "visible": True, "order": 3},
+    {"id": "template_studio", "url_name": "core:template_studio", "match_urls": ["template_studio", "template_studio_create", "template_studio_edit"], "default_label": "Vorlagen-Studio", "icon": "bi-ui-checks-grid", "zone": "main", "display": "icon_text", "visible": True, "order": 4, "staff_only": True},
     {"id": "settings", "url_name": "auth_kit:profile", "match_urls": ["profile", "password_change", "settings"], "default_label": "Profil & Einstellungen", "icon": "bi-person-circle", "zone": "utility", "display": "icon_only", "visible": True, "order": 1, "locked": True},
     {"id": "django_admin", "url_name": "admin:index", "url": "/admin/", "match_urls": [], "default_label": "Django Admin", "icon": "bi-shield-lock", "zone": "utility", "display": "icon_only", "visible": True, "order": 3, "staff_only": True},
     {"id": "night_mode", "url_name": "design_studio:toggle_night", "match_urls": [], "default_label": "Tag / Nacht", "icon": "bi-moon-stars", "zone": "utility", "display": "icon_only", "visible": True, "order": 4},
