@@ -10,7 +10,7 @@
                     class="btn p-0 border-0 position-relative rounded-2 overflow-hidden text-start"
                     onclick="openPhotoLightboxFromEl(this, 0)"
                     title="Im Leuchtkasten öffnen">
-                <img src="{{ p.url }}" alt="{{ p.caption|default:item.title }}" class="img-fluid rounded-2 object-fit-cover w-100" style="max-height: 180px;">
+                <img src="{{ p.url }}" alt="{{ p.caption|default:item.title }}" class="img-fluid rounded-2 object-fit-contain bg-dark w-100" style="max-height: 220px;">
                 <span class="position-absolute bottom-0 end-0 m-1 badge bg-dark bg-opacity-75 text-white">
                     <i class="bi bi-arrows-fullscreen"></i>
                 </span>
@@ -50,8 +50,8 @@
                                 class="btn p-0 border-0 w-100 d-block position-relative"
                                 onclick="openPhotoLightboxFromEl(this, {{ forloop.counter0 }})"
                                 title="Im Leuchtkasten öffnen">
-                            <div class="ratio ratio-4x3">
-                                <img src="{{ p.url }}" alt="{{ p.caption|default:item.title }}" class="w-100 h-100 object-fit-cover">
+                            <div class="ratio ratio-4x3 bg-dark">
+                                <img src="{{ p.url }}" alt="{{ p.caption|default:item.title }}" class="w-100 h-100 object-fit-contain">
                             </div>
                             <span class="position-absolute top-0 end-0 m-2 badge bg-dark bg-opacity-75 text-white">
                                 {{ forloop.counter }} / {{ photos|length }}
