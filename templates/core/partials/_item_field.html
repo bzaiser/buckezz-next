@@ -32,7 +32,9 @@
     {% endif %}
 {% elif field_key == 'use_image' and bucket.category.template.use_image %}
     {% include 'core/partials/_photo_gallery.html' with gallery_suffix='field' %}
-{% elif field_key == 'use_subchecklist' or field_key == 'use_subchecklist_photos' %}
+{% elif field_key == 'use_subchecklist_photos' and bucket.category.template.use_subchecklist_photos %}
+    {% include 'core/partials/_subchecklist.html' with sub_suffix='field' %}
+{% elif field_key == 'use_subchecklist' and not bucket.category.template.use_subchecklist_photos %}
     {% include 'core/partials/_subchecklist.html' with sub_suffix='field' %}
 {% elif field_key == 'use_domain_category' and item.domain_category %}
     <span class="badge text-white" style="{{ item.domain_category.badge_style }}">{% if item.domain_category.icon %}<i class="bi {{ item.domain_category.icon }} me-1"></i>{% endif %}{{ item.domain_category.name }}</span>
