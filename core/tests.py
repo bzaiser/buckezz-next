@@ -972,7 +972,7 @@ class BuckezzRegressionTests(TestCase):
             'notify_kit.models': SimpleNamespace(Notification=mock_notif_cls),
         }):
             register_buckezz_topics()
-            self.assertEqual(mock_reg.call_count, 4)
+            self.assertEqual(mock_reg.call_count, 5)
             res = notify_user_safe(user, 'Freigabe', 'Geteilt', level='info', link='/list/1/', topic='buckezz.shared', deduplicate_unread=True)
             self.assertEqual(res, 'ok')
             mock_notify.assert_called_once()
