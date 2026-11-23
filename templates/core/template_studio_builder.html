@@ -630,9 +630,22 @@
                                                 <span x-text="summaryRule.label || 'Summe'"></span>: 42 <span x-text="summaryRule.unit"></span>
                                             </span>
                                         </div>
-                                        <div class="card-zone-drop d-flex flex-wrap gap-1 p-2 rounded-2 border border-dashed bg-body-tertiary" data-zone="header" style="min-height: 38px;">
+                                        <div class="card-zone-drop d-flex flex-wrap gap-1 p-2 rounded-2 border border-dashed bg-body-tertiary"
+                                             data-zone="header"
+                                             style="min-height: 38px;"
+                                             :class="dragOverZone === 'header' ? 'border-primary bg-primary-subtle' : ''"
+                                             @dragover.prevent="dragOverZone = 'header'"
+                                             @dragleave="if (dragOverZone === 'header') dragOverZone = null"
+                                             @drop.prevent="dropFieldOnZone('header')">
                                             <template x-for="fid in cardLayout.header" :key="'zh-' + fid">
-                                                <div class="badge bg-body text-body border d-inline-flex align-items-center gap-1 py-1 px-2" :data-field-id="fid" style="cursor: grab;">
+                                                <div class="badge bg-body text-body border d-inline-flex align-items-center gap-1 py-1 px-2"
+                                                     :data-field-id="fid"
+                                                     draggable="true"
+                                                     @dragstart="startDragField(fid, $event)"
+                                                     @dragend="endDragField()"
+                                                     @dragover.prevent.stop="dragOverZone = 'header'"
+                                                     @drop.prevent.stop="dropFieldOnZone('header', fid)"
+                                                     style="cursor: grab;">
                                                     <i class="bi bi-grip-vertical text-muted"></i>
                                                     <span x-text="fieldPreviewText(fid)"></span>
                                                     <button type="button" @click="moveFieldToZone(fid, 'body')" class="btn btn-sm p-0 border-0 text-secondary ms-1 lh-1" title="In Mitte verschieben"><i class="bi bi-arrow-down-short"></i></button>
@@ -646,9 +659,22 @@
                                     <!-- Zone 2: Mitte / Badges & Details -->
                                     <div>
                                         <div class="small text-muted mb-1">Mitte (Badges &amp; Details)</div>
-                                        <div class="card-zone-drop d-flex flex-wrap gap-1 p-2 rounded-2 border border-dashed bg-body-tertiary" data-zone="body" style="min-height: 44px;">
+                                        <div class="card-zone-drop d-flex flex-wrap gap-1 p-2 rounded-2 border border-dashed bg-body-tertiary"
+                                             data-zone="body"
+                                             style="min-height: 44px;"
+                                             :class="dragOverZone === 'body' ? 'border-primary bg-primary-subtle' : ''"
+                                             @dragover.prevent="dragOverZone = 'body'"
+                                             @dragleave="if (dragOverZone === 'body') dragOverZone = null"
+                                             @drop.prevent="dropFieldOnZone('body')">
                                             <template x-for="fid in cardLayout.body" :key="'zb-' + fid">
-                                                <div class="badge bg-body text-body border d-inline-flex align-items-center gap-1 py-1 px-2" :data-field-id="fid" style="cursor: grab;">
+                                                <div class="badge bg-body text-body border d-inline-flex align-items-center gap-1 py-1 px-2"
+                                                     :data-field-id="fid"
+                                                     draggable="true"
+                                                     @dragstart="startDragField(fid, $event)"
+                                                     @dragend="endDragField()"
+                                                     @dragover.prevent.stop="dragOverZone = 'body'"
+                                                     @drop.prevent.stop="dropFieldOnZone('body', fid)"
+                                                     style="cursor: grab;">
                                                     <i class="bi bi-grip-vertical text-muted"></i>
                                                     <span x-text="fieldPreviewText(fid)"></span>
                                                     <button type="button" @click="moveFieldToZone(fid, 'header')" class="btn btn-sm p-0 border-0 text-secondary ms-1 lh-1" title="In Kopfzeile"><i class="bi bi-arrow-up-short"></i></button>
@@ -686,9 +712,22 @@
                                     <div>
                                         <div class="small text-muted mb-1">Fußzeile (Zahlen, Preis, Bewertung, Aktionen)</div>
                                         <div class="d-flex justify-content-between align-items-center gap-2 border-top pt-2">
-                                            <div class="card-zone-drop d-flex flex-wrap gap-1 p-2 rounded-2 border border-dashed bg-body-tertiary flex-grow-1" data-zone="footer" style="min-height: 38px;">
+                                            <div class="card-zone-drop d-flex flex-wrap gap-1 p-2 rounded-2 border border-dashed bg-body-tertiary flex-grow-1"
+                                                 data-zone="footer"
+                                                 style="min-height: 38px;"
+                                                 :class="dragOverZone === 'footer' ? 'border-primary bg-primary-subtle' : ''"
+                                                 @dragover.prevent="dragOverZone = 'footer'"
+                                                 @dragleave="if (dragOverZone === 'footer') dragOverZone = null"
+                                                 @drop.prevent="dropFieldOnZone('footer')">
                                                 <template x-for="fid in cardLayout.footer" :key="'zf-' + fid">
-                                                    <div class="badge bg-body text-body border d-inline-flex align-items-center gap-1 py-1 px-2" :data-field-id="fid" style="cursor: grab;">
+                                                    <div class="badge bg-body text-body border d-inline-flex align-items-center gap-1 py-1 px-2"
+                                                         :data-field-id="fid"
+                                                         draggable="true"
+                                                         @dragstart="startDragField(fid, $event)"
+                                                         @dragend="endDragField()"
+                                                         @dragover.prevent.stop="dragOverZone = 'footer'"
+                                                         @drop.prevent.stop="dropFieldOnZone('footer', fid)"
+                                                         style="cursor: grab;">
                                                         <i class="bi bi-grip-vertical text-muted"></i>
                                                         <span x-text="fieldPreviewText(fid)"></span>
                                                         <button type="button" @click="moveFieldToZone(fid, 'body')" class="btn btn-sm p-0 border-0 text-secondary ms-1 lh-1" title="In Mitte verschieben"><i class="bi bi-arrow-up-short"></i></button>
@@ -710,9 +749,22 @@
                                 <!-- Zone 4: Ausgeblendet (nur im Eingabe-Formular) -->
                                 <div x-show="!isActive('use_tracker')" class="mt-2">
                                     <div class="small text-muted mb-1"><i class="bi bi-eye-slash me-1"></i>Auf Card ausgeblendet (nur im Formular)</div>
-                                    <div class="card-zone-drop d-flex flex-wrap gap-1 p-2 rounded-2 border border-dashed bg-body-secondary opacity-75" data-zone="hidden" style="min-height: 36px;">
+                                    <div class="card-zone-drop d-flex flex-wrap gap-1 p-2 rounded-2 border border-dashed bg-body-secondary opacity-75"
+                                         data-zone="hidden"
+                                         style="min-height: 36px;"
+                                         :class="dragOverZone === 'hidden' ? 'border-primary bg-primary-subtle opacity-100' : ''"
+                                         @dragover.prevent="dragOverZone = 'hidden'"
+                                         @dragleave="if (dragOverZone === 'hidden') dragOverZone = null"
+                                         @drop.prevent="dropFieldOnZone('hidden')">
                                         <template x-for="fid in cardLayout.hidden" :key="'zoff-' + fid">
-                                            <div class="badge bg-body text-body border d-inline-flex align-items-center gap-1 py-1 px-2" :data-field-id="fid" style="cursor: grab;">
+                                            <div class="badge bg-body text-body border d-inline-flex align-items-center gap-1 py-1 px-2"
+                                                 :data-field-id="fid"
+                                                 draggable="true"
+                                                 @dragstart="startDragField(fid, $event)"
+                                                 @dragend="endDragField()"
+                                                 @dragover.prevent.stop="dragOverZone = 'hidden'"
+                                                 @drop.prevent.stop="dropFieldOnZone('hidden', fid)"
+                                                 style="cursor: grab;">
                                                 <i class="bi bi-grip-vertical text-muted"></i>
                                                 <span x-text="fieldPreviewText(fid)"></span>
                                                 <button type="button" @click="showFieldOnCard(fid)" class="btn btn-sm p-0 border-0 text-primary ms-1 lh-1" title="Wieder auf Card anzeigen"><i class="bi bi-eye"></i></button>
@@ -935,6 +987,8 @@
             },
             genrePreviews: {{ genre_preview_json|default:"{}"|safe }},
             cardLayout: { header: [], body: [], footer: [], hidden: [] },
+            draggingField: null,
+            dragOverZone: null,
 
             get genrePreviewStyle() {
                 const g = this.genrePreviews[this.uiStyle.genre];
@@ -1063,6 +1117,41 @@
                 };
                 return map[fid] || (f ? f.label : fid);
             },
+            startDragField(fid, ev) {
+                this.draggingField = fid;
+                if (ev && ev.dataTransfer) {
+                    ev.dataTransfer.effectAllowed = 'move';
+                    try { ev.dataTransfer.setData('text/plain', fid); } catch (e) {}
+                }
+            },
+            endDragField() {
+                this.draggingField = null;
+                this.dragOverZone = null;
+            },
+            dropFieldOnZone(targetZone, beforeFid = null) {
+                const fid = this.draggingField;
+                this.dragOverZone = null;
+                this.draggingField = null;
+                if (!fid || !this.cardLayout[targetZone] || fid === beforeFid) return;
+                for (const z of ['header', 'body', 'footer', 'hidden']) {
+                    this.cardLayout[z] = this.cardLayout[z].filter(x => x !== fid);
+                }
+                const arr = this.cardLayout[targetZone];
+                if (beforeFid) {
+                    const idx = arr.indexOf(beforeFid);
+                    if (idx >= 0) arr.splice(idx, 0, fid);
+                    else arr.push(fid);
+                } else {
+                    arr.push(fid);
+                }
+                if (fid.startsWith('cf:')) {
+                    const cf = this.customFields.find(c => 'cf:' + c.key === fid);
+                    if (cf) {
+                        cf.zone = targetZone;
+                        cf.show_on_card = (targetZone !== 'hidden');
+                    }
+                }
+            },
             moveFieldToZone(fid, targetZone) {
                 for (const z of ['header', 'body', 'footer', 'hidden']) {
                     this.cardLayout[z] = this.cardLayout[z].filter(x => x !== fid);
@@ -1183,20 +1272,6 @@
                     });
                 }
                 if (typeof Sortable !== 'undefined') {
-                    document.querySelectorAll('.card-zone-drop').forEach(el => {
-                        new Sortable(el, {
-                            group: 'cardZones',
-                            animation: 150,
-                            draggable: '[data-field-id]',
-                            onEnd: (evt) => {
-                                this.syncCardZonesFromDom();
-                                // Restore DOM node back to original container so Alpine x-for owns DOM cleanly
-                                if (evt.from && evt.to && evt.from !== evt.to && evt.item) {
-                                    evt.item.remove();
-                                }
-                            }
-                        });
-                    });
                     const cfList = document.getElementById('custom-fields-sortable');
                     if (cfList) {
                         new Sortable(cfList, {

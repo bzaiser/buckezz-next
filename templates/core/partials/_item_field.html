@@ -33,29 +33,7 @@
 {% elif field_key == 'use_image' and bucket.category.template.use_image %}
     {% include 'core/partials/_photo_gallery.html' with gallery_suffix='field' %}
 {% elif field_key == 'use_subchecklist' or field_key == 'use_subchecklist_photos' %}
-    {% if item.subchecklist_json %}
-        {% if bucket.category.template.use_subchecklist or bucket.category.template.use_subchecklist_photos %}
-        <div class="w-100 ps-2 border-start">
-            <div class="small fw-semibold text-muted mb-1"><i class="bi bi-list-check me-1"></i>Einzelpunkte:</div>
-            <div class="d-flex flex-column gap-1">
-                {% for sub in item.subchecklist_json %}
-                <div class="d-flex align-items-center gap-2">
-                    <label class="form-check small mb-0">
-                        <input type="checkbox" class="form-check-input" {% if sub.done %}checked{% endif %} {% if not can_edit %}disabled{% endif %}
-                               {% if can_edit %}hx-post="{% url 'core:toggle_subitem' item.id forloop.counter0 %}" hx-target="#item-list" hx-swap="innerHTML"{% endif %}>
-                        <span class="form-check-label {% if sub.done %}text-decoration-line-through text-muted{% endif %}">{{ sub.title }}</span>
-                    </label>
-                    {% if sub.image %}
-                    <button type="button" class="btn p-0 border-0" onclick="openPhotoLightbox([{url: '{{ sub.image|escapejs }}', caption: '{{ sub.title|escapejs }}', title: '{{ item.title|escapejs }}'}], 0)" title="Im Leuchtkasten öffnen">
-                        <img src="{{ sub.image }}" alt="{{ sub.title }}" class="img-thumbnail rounded-2" width="44">
-                    </button>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-    {% endif %}
+    {% include 'core/partials/_subchecklist.html' with sub_suffix='field' %}
 {% elif field_key == 'use_domain_category' and item.domain_category %}
     <span class="badge text-white" style="{{ item.domain_category.badge_style }}">{% if item.domain_category.icon %}<i class="bi {{ item.domain_category.icon }} me-1"></i>{% endif %}{{ item.domain_category.name }}</span>
 {% elif field_key == 'use_persons' and item.person_roles.exists and not is_beneficiary %}
