@@ -2942,6 +2942,24 @@ class TemplateStudioBuilderView(StaffRequiredMixin, View):
                     }
             except (ValueError, TypeError):
                 card_layout = None
+        pdf_orientation = request.POST.get('pdf_orientation', 'portrait')
+        if pdf_orientation not in ('portrait', 'landscape'):
+            pdf_orientation = 'portrait'
+        pdf_filter = request.POST.get('pdf_filter', 'all')
+        if pdf_filter not in ('all', 'open', 'done'):
+            pdf_filter = 'all'
+        pdf_cfg = {
+            'orientation': pdf_orientation,
+            'filter': pdf_filter,
+            'include_summary': request.POST.get('pdf_include_summary') == 'on',
+            'include_notes': request.POST.get('pdf_include_notes') == 'on',
+            'include_photos': request.POST.get('pdf_include_photos') == 'on',
+            'include_subchecklist': request.POST.get('pdf_include_subchecklist') == 'on',
+            'include_custom_fields': request.POST.get('pdf_include_custom_fields') == 'on',
+            'include_persons': request.POST.get('pdf_include_persons') == 'on',
+            'include_dates': request.POST.get('pdf_include_dates') == 'on',
+            'footer_text': (request.POST.get('pdf_footer_text') or '').strip()[:160],
+        }
         tpl.ui_style_json = {
             'layout_mode': layout_mode,
             'card_width': card_width,
@@ -2949,6 +2967,7 @@ class TemplateStudioBuilderView(StaffRequiredMixin, View):
             'show_creator': request.POST.get('ui_show_creator') == 'on',
             'genre': genre,
             'card_layout': card_layout,
+            'pdf': pdf_cfg,
         }
         tpl.save()
 

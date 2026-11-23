@@ -168,9 +168,11 @@ Nutze exakt dieses JSON-Schema:
   &quot;flags&quot;: {
     &quot;use_amount&quot;: false, &quot;use_price&quot;: false, &quot;use_brand&quot;: false, &quot;use_shop&quot;: false,
     &quot;use_location&quot;: false, &quot;use_url&quot;: false, &quot;use_start_date&quot;: false, &quot;use_end_date&quot;: false,
-    &quot;use_reminder&quot;: false, &quot;use_persons&quot;: false, &quot;use_rating&quot;: false, &quot;use_tracker&quot;: false,
-    &quot;use_milestone&quot;: false, &quot;use_image&quot;: false, &quot;use_subchecklist&quot;: false, &quot;use_subchecklist_photos&quot;: false
+    &quot;use_reminder&quot;: false, &quot;use_persons&quot;: false, &quot;use_domain_category&quot;: false, &quot;use_rating&quot;: false,
+    &quot;use_tracker&quot;: false, &quot;use_milestone&quot;: false, &quot;use_image&quot;: false, &quot;use_image_checklist&quot;: false,
+    &quot;use_subchecklist&quot;: false, &quot;use_subchecklist_photos&quot;: false
   },
+  &quot;domain_category_purpose&quot;: &quot; | general | inventory | contact | document | project&quot;,
   &quot;behavior&quot;: {
     &quot;use_is_public&quot;: true, &quot;use_allow_public_edit&quot;: false, &quot;use_beneficiary&quot;: false,
     &quot;use_secret_santa&quot;: false, &quot;new_items_at_bottom&quot;: false
@@ -196,12 +198,21 @@ Nutze exakt dieses JSON-Schema:
     &quot;layout_mode&quot;: &quot;row | cards | stacked&quot;,
     &quot;card_width&quot;: &quot;1/4 | 1/2 | 3/4 | hero&quot;,
     &quot;density&quot;: &quot;normal | compact&quot;,
-    &quot;show_creator&quot;: true
+    &quot;show_creator&quot;: true,
+    &quot;genre&quot;: &quot;optionales Theme-Genre z.B. workshop, kitchen, wellness, travel&quot;,
+    &quot;card_layout&quot;: {&quot;header&quot;: [], &quot;body&quot;: [], &quot;footer&quot;: [], &quot;hidden&quot;: []},
+    &quot;pdf&quot;: {
+      &quot;orientation&quot;: &quot;portrait | landscape&quot;,
+      &quot;filter&quot;: &quot;all | open | done&quot;,
+      &quot;include_summary&quot;: true, &quot;include_notes&quot;: true, &quot;include_photos&quot;: true,
+      &quot;include_subchecklist&quot;: true, &quot;include_custom_fields&quot;: true,
+      &quot;include_persons&quot;: true, &quot;include_dates&quot;: true, &quot;footer_text&quot;: &quot;&quot;
+    }
   },
   &quot;custom_fields_json&quot;: [
-    {&quot;key&quot;: &quot;feld_key&quot;, &quot;label&quot;: &quot;Feldname&quot;, &quot;type&quot;: &quot;text | textarea | number | currency | date | url | image | select | radio | multiselect | checkbox | rating | color&quot;, &quot;options&quot;: &quot;Bei select/radio/multiselect: Option 1, Option 2; bei currency: Währungskürzel z.B. €&quot;}
+    {&quot;key&quot;: &quot;feld_key&quot;, &quot;label&quot;: &quot;Feldname&quot;, &quot;type&quot;: &quot;text | textarea | number | currency | date | url | image | select | radio | multiselect | checkbox | rating | color&quot;, &quot;options&quot;: &quot;Bei select/radio/multiselect: Option 1, Option 2; bei currency: Währungskürzel z.B. €&quot;, &quot;zone&quot;: &quot;body&quot;, &quot;show_on_card&quot;: true}
   ],
-  &quot;group_by&quot;: &quot;none | milestone | status | person | shop | brand | location&quot;,
+  &quot;group_by&quot;: &quot;none | milestone | status | category | person | shop | brand | location&quot;,
   &quot;summary_rule_json&quot;: {&quot;enabled&quot;: false, &quot;field&quot;: &quot;price&quot;, &quot;op&quot;: &quot;sum | avg | count&quot;, &quot;status_filter&quot;: &quot;&quot;, &quot;label&quot;: &quot;Summe&quot;, &quot;unit&quot;: &quot;€&quot;},
   &quot;recurrence_json&quot;: {&quot;mode&quot;: &quot;none | daily | weekly | monthly | days&quot;, &quot;interval_days&quot;: 7},
   &quot;help_purpose&quot;: &quot;Kurze Erklärung&quot;,
@@ -214,7 +225,9 @@ Nutze exakt dieses JSON-Schema:
 
 Hinweise:
 - Setze use_tracker NUR auf true für wiederkehrende Tages-Check-ins oder Vorratsverbrauch (z. B. Medikamente, Gießen); für Status-/Sammlungslisten (z. B. Bücher, Filme, Aufgaben) setze use_tracker auf false und nutze allowed_statuses_json + custom_fields_json.
-- Nutze custom_fields_json für domänenspezifische Felder (z. B. Autor, Verkaufspreis, Verkaufsplattform, ISBN) und group_by: &quot;status&quot;, wenn verschiedene Status-Gruppen sichtbar sein sollen.
+- Nutze use_image: true + use_image_checklist: true, wenn mehrere Fotos pro Eintrag mit eigener Textzeile hochgeladen und einzeln abgehakt werden sollen (z. B. Verliehenes Werkzeug/Kleidung zurück erhalten).
+- Nutze use_subchecklist für einfache Einzelpunkte (oder use_subchecklist_photos für Einzelpunkte mit eigenem Foto pro Zeile).
+- Nutze use_domain_category: true + group_by: &quot;category&quot; für farbige Stammdaten-Kategorien und custom_fields_json für domänenspezifische Felder (z. B. Autor, Verkaufspreis, ISBN).
 - Setze summary_rule_json.enabled nur auf true für spezielle Auswertungen (z. B. custom:verkaufspreis); bei use_price: true wird die Preis-Summe bereits automatisch angezeigt.`;
         },
         handleFileDrop(evt) {

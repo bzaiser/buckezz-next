@@ -77,10 +77,48 @@ class ExportListPDFView(View):
         if not (is_owner or is_shared or bucket.is_public):
             return HttpResponseForbidden("Zugriff verweigert.")
             
+        tpl = bucket.category.template
+        raw_pdf = (tpl.get_ui_style().get('pdf') or {}) if hasattr(tpl, 'get_ui_style') else {}
+        pdf_cfg = {
+            'orientation': raw_pdf.get('orientation') if raw_pdf.get('orientation') in ('portrait', 'landscape') else 'portrait',
+            'filter': request.GET.get('filter') or raw_pdf.get('filter') or 'all',
+            'include_summary': raw_pdf.get('include_summary', True),
+            'include_notes': raw_pdf.get('include_notes', True),
+            'include_photos': raw_pdf.get('include_photos', True),
+            'include_subchecklist': raw_pdf.get('include_subchecklist', True),
+            'include_custom_fields': raw_pdf.get('include_custom_fields', True),
+            'include_persons': raw_pdf.get('include_persons', True),
+            'include_dates': raw_pdf.get('include_dates', True),
+            'footer_text': raw_pdf.get('footer_text', ''),
+        }
+
+        all_items = list(
+            bucket.items.select_related('domain_category', 'created_by')
+            .prefetch_related('images', 'person_roles__person')
+            .all()
+        )
+        total_count = len(all_items)
+        done_count = sum(1 for i in all_items if i.is_completed)
+        open_count = total_count - done_count
+
+        if pdf_cfg['filter'] == 'open':
+            items = [i for i in all_items if not i.is_completed]
+        elif pdf_cfg['filter'] == 'done':
+            items = [i for i in all_items if i.is_completed]
+        else:
+            items = all_items
+
+        total_price = sum(float(i.price) for i in items if i.price is not None) if tpl.use_price else None
+
         context = {
             'bucket': bucket,
-            'items': bucket.items.all(),
-            'template_config': bucket.category.template
+            'items': items,
+            'template_config': tpl,
+            'pdf_cfg': pdf_cfg,
+            'total_count': total_count,
+            'open_count': open_count,
+            'done_count': done_count,
+            'total_price': total_price,
         }
         
         response = render_to_pdf('core/pdf_export.html', context)

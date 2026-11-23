@@ -504,6 +504,76 @@
                                     <hr class="my-1">
 
                                     <div class="d-flex flex-column gap-2">
+                                        <div class="small fw-semibold"><i class="bi bi-file-earmark-pdf me-1"></i>PDF-Export konfigurieren</div>
+                                        <div class="row g-2">
+                                            <div class="col-6">
+                                                <label class="form-label small mb-1">Ausrichtung</label>
+                                                <select name="pdf_orientation" class="form-select form-select-sm">
+                                                    <option value="portrait" {% if ui_style.pdf.orientation != 'landscape' %}selected{% endif %}>A4 Hochformat</option>
+                                                    <option value="landscape" {% if ui_style.pdf.orientation == 'landscape' %}selected{% endif %}>A4 Querformat</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small mb-1">Einträge</label>
+                                                <select name="pdf_filter" class="form-select form-select-sm">
+                                                    <option value="all" {% if ui_style.pdf.filter != 'open' and ui_style.pdf.filter != 'done' %}selected{% endif %}>Alle</option>
+                                                    <option value="open" {% if ui_style.pdf.filter == 'open' %}selected{% endif %}>Nur offene</option>
+                                                    <option value="done" {% if ui_style.pdf.filter == 'done' %}selected{% endif %}>Nur erledigte</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="row g-1 small">
+                                            <div class="col-6">
+                                                <div class="form-check form-switch">
+                                                    <input class="form-check-input" type="checkbox" name="pdf_include_summary" id="pdf_sum" {% if not ui_style.pdf or ui_style.pdf.include_summary %}checked{% endif %}>
+                                                    <label class="form-check-label" for="pdf_sum">KPI-Kopf</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="form-check form-switch">
+                                                    <input class="form-check-input" type="checkbox" name="pdf_include_notes" id="pdf_notes" {% if not ui_style.pdf or ui_style.pdf.include_notes %}checked{% endif %}>
+                                                    <label class="form-check-label" for="pdf_notes">Notizen</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="form-check form-switch">
+                                                    <input class="form-check-input" type="checkbox" name="pdf_include_photos" id="pdf_photos" {% if not ui_style.pdf or ui_style.pdf.include_photos %}checked{% endif %}>
+                                                    <label class="form-check-label" for="pdf_photos">Fotos &amp; Text</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="form-check form-switch">
+                                                    <input class="form-check-input" type="checkbox" name="pdf_include_subchecklist" id="pdf_sub" {% if not ui_style.pdf or ui_style.pdf.include_subchecklist %}checked{% endif %}>
+                                                    <label class="form-check-label" for="pdf_sub">Einzelpunkte</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="form-check form-switch">
+                                                    <input class="form-check-input" type="checkbox" name="pdf_include_custom_fields" id="pdf_cf" {% if not ui_style.pdf or ui_style.pdf.include_custom_fields %}checked{% endif %}>
+                                                    <label class="form-check-label" for="pdf_cf">Zusatzfelder</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="form-check form-switch">
+                                                    <input class="form-check-input" type="checkbox" name="pdf_include_persons" id="pdf_pers" {% if not ui_style.pdf or ui_style.pdf.include_persons %}checked{% endif %}>
+                                                    <label class="form-check-label" for="pdf_pers">Personen</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="form-check form-switch">
+                                                    <input class="form-check-input" type="checkbox" name="pdf_include_dates" id="pdf_dates" {% if not ui_style.pdf or ui_style.pdf.include_dates %}checked{% endif %}>
+                                                    <label class="form-check-label" for="pdf_dates">Termine &amp; Ort</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <input type="text" name="pdf_footer_text" value="{{ ui_style.pdf.footer_text|default:'' }}" maxlength="160" class="form-control form-control-sm" placeholder="Optionaler Fußzeilentext (z.B. Vereinsname)">
+                                        </div>
+                                    </div>
+
+                                    <hr class="my-1">
+
+                                    <div class="d-flex flex-column gap-2">
                                         <div class="small fw-semibold">Freigabe &amp; Verhalten</div>
                                         <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox" name="use_is_public" id="sw_public" {% if tpl.use_is_public %}checked{% endif %}>

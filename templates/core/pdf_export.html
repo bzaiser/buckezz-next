@@ -3,199 +3,239 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ bucket.title }} – PDF</title>
     <style>
-        :root {
-            --bg-main: {{ user_settings.bg_color|default:"#0a0e14" }};
-            --primary: {{ user_settings.primary_color|default:"#00d2ff" }};
-            --accent: {{ user_settings.accent_color|default:"#ffab00" }};
-            --text-main: {{ user_settings.text_color|default:"#ffffff" }};
-        }
         @page {
-            size: A4;
-            margin: 2cm;
+            size: A4 {{ pdf_cfg.orientation|default:"portrait" }};
+            margin: 1.5cm;
         }
         body {
             font-family: Helvetica, Arial, sans-serif;
-            font-size: 12pt;
-            color: #333;
+            font-size: 10pt;
+            color: #222;
+            line-height: 1.35;
         }
         .header {
-            text-align: center;
-            border-bottom: 2px solid #333;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
+            border-bottom: 2px solid #222;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
         }
         .title {
-            font-size: 24pt;
+            font-size: 18pt;
             font-weight: bold;
             margin: 0;
         }
         .subtitle {
-            font-size: 14pt;
-            color: #666;
-            margin-top: 5px;
+            font-size: 10pt;
+            color: #555;
+            margin-top: 3px;
+        }
+        .kpi-bar {
+            background-color: #f4f6f9;
+            border: 1px solid #d9e0e8;
+            padding: 6px 10px;
+            margin-bottom: 12px;
+            font-size: 9.5pt;
+        }
+        .kpi-item {
+            margin-right: 16px;
         }
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 20px;
         }
         th {
-            background-color: #f2f2f2;
+            background-color: #eef1f5;
             text-align: left;
-            padding: 8px;
-            border-bottom: 1px solid #ddd;
-            font-size: 10pt;
+            padding: 6px 7px;
+            border-bottom: 1.5px solid #bbb;
+            font-size: 8.5pt;
             text-transform: uppercase;
+            color: #444;
+        }
+        tr {
+            page-break-inside: avoid;
         }
         td {
-            padding: 8px;
-            border-bottom: 1px solid #eee;
+            padding: 7px;
+            border-bottom: 1px solid #e2e6ea;
             vertical-align: top;
         }
         .completed {
             text-decoration: line-through;
-            color: #999;
+            color: #777;
+        }
+        .badge {
+            display: inline-block;
+            padding: 1px 5px;
+            font-size: 8pt;
+            background-color: #e9ecef;
+            color: #333;
+            border: 1px solid #ced4da;
+            margin-right: 4px;
+        }
+        .meta {
+            font-size: 8.5pt;
+            color: #555;
+            margin-top: 3px;
+        }
+        .sublist {
+            margin-top: 4px;
+            padding-left: 8px;
+            border-left: 2px solid #ccc;
+            font-size: 8.5pt;
+        }
+        .subrow {
+            margin-bottom: 3px;
+        }
+        .photo-strip {
+            margin-top: 5px;
+        }
+        .photo-box {
+            display: inline-block;
+            border: 1px solid #ddd;
+            padding: 3px;
+            margin-right: 6px;
+            margin-bottom: 4px;
+            text-align: center;
+            vertical-align: top;
+            width: 78px;
+        }
+        .photo-box img {
+            max-width: 70px;
+            max-height: 70px;
+        }
+        .photo-cap {
+            font-size: 7.5pt;
+            color: #444;
+            margin-top: 2px;
         }
         .footer {
             position: fixed;
             bottom: 0;
             width: 100%;
             text-align: center;
-            font-size: 9pt;
-            color: #999;
-            border-top: 1px solid #eee;
-            padding-top: 5px;
-        }
-
-        /* Print and Screen Adaptations */
-        @media print {
-            .no-print {
-                display: none !important;
-            }
-            body {
-                background: white !important;
-                color: black !important;
-                padding-top: 0 !important;
-            }
-        }
-        
-        @media screen {
-            body {
-                background-color: var(--bg-main);
-                color: var(--text-main);
-                padding-top: 80px;
-                padding-left: 20px;
-                padding-right: 20px;
-                background-image: 
-                    radial-gradient(circle at 10% 20%, color-mix(in srgb, var(--primary) 8%, transparent) 0%, transparent 50%),
-                    radial-gradient(circle at 90% 80%, color-mix(in srgb, var(--accent) 6%, transparent) 0%, transparent 50%);
-                background-attachment: fixed;
-            }
-            .header {
-                border-bottom: 2px solid rgba(255, 255, 255, 0.15);
-            }
-            .subtitle {
-                color: #cbd5e0;
-            }
-            th {
-                background-color: rgba(255, 255, 255, 0.05);
-                color: #cbd5e0;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-            }
-            td {
-                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-            }
-            .completed {
-                color: #718096;
-            }
-            .footer {
-                background-color: #0a0e14;
-                border-top: 1px solid rgba(255, 255, 255, 0.1);
-                color: #718096;
-            }
-            .control-bar {
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                height: 60px;
-                background: rgba(21, 27, 35, 0.85);
-                backdrop-filter: blur(12px);
-                -webkit-backdrop-filter: blur(12px);
-                border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 0 20px;
-                z-index: 9999;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-            }
-            .control-bar .btn {
-                padding: 8px 16px;
-                border-radius: 8px;
-                font-weight: 600;
-                font-size: 0.9rem;
-                cursor: pointer;
-                border: 1px solid rgba(255, 255, 255, 0.15);
-                transition: all 0.2s ease;
-                color: #fff;
-                display: flex;
-                align-items: center;
-                gap: 6px;
-                text-decoration: none;
-            }
-            .control-bar .btn-close {
-                background: rgba(255, 255, 255, 0.08);
-            }
-            .control-bar .btn-close:hover {
-                background: rgba(255, 255, 255, 0.15);
-                transform: translateY(-1px);
-                border-color: rgba(255, 255, 255, 0.3);
-            }
-            .control-bar .btn-print {
-                background: linear-gradient(135deg, var(--primary), var(--accent));
-                border: none;
-                color: #000;
-                font-weight: 800;
-            }
-            .control-bar .btn-print:hover {
-                transform: translateY(-1px);
-                box-shadow: 0 4px 12px rgba(var(--primary), 0.3);
-            }
+            font-size: 8pt;
+            color: #777;
+            border-top: 1px solid #ddd;
+            padding-top: 4px;
         }
     </style>
 </head>
 <body>
-
     <div class="header">
-        <img src="{% static 'img/logo.png' %}" alt="buckezz" style="height: 40px; margin-bottom: 8px;">
+        <img src="{% static 'img/logo.png' %}" alt="buckezz" style="height: 28px; margin-bottom: 4px;">
         <h1 class="title">{{ bucket.title }}</h1>
-        <div class="subtitle">{{ bucket.category.name }} - Erstellt am {{ bucket.created_at|date:"d.m.Y" }}</div>
+        <div class="subtitle">{{ bucket.category.name }} · Erstellt am {{ bucket.created_at|date:"d.m.Y" }}</div>
     </div>
+
+    {% if pdf_cfg.include_summary %}
+    <div class="kpi-bar">
+        <span class="kpi-item"><strong>Gesamt:</strong> {{ total_count }}</span>
+        <span class="kpi-item"><strong>Offen:</strong> {{ open_count }}</span>
+        <span class="kpi-item"><strong>Erledigt:</strong> {{ done_count }}</span>
+        {% if total_price is not None %}
+        <span class="kpi-item"><strong>Summe:</strong> {{ total_price|floatformat:2 }} €</span>
+        {% endif %}
+    </div>
+    {% endif %}
 
     <table>
         <thead>
             <tr>
-                <th width="30">#</th>
-                <th>Bezeichnung</th>
-                {% if template_config.use_amount %}<th>Menge</th>{% endif %}
-                {% if template_config.use_brand %}<th>Marke</th>{% endif %}
-                {% if template_config.use_shop %}<th>Shop</th>{% endif %}
-                {% if template_config.use_price %}<th>Preis</th>{% endif %}
-                {% if template_config.use_rating %}<th>Bewertung</th>{% endif %}
+                <th width="28"></th>
+                <th>Eintrag &amp; Details</th>
+                {% if template_config.use_amount %}<th width="70">Menge</th>{% endif %}
+                {% if template_config.use_brand %}<th width="85">Marke</th>{% endif %}
+                {% if template_config.use_shop %}<th width="85">Shop</th>{% endif %}
+                {% if template_config.use_price %}<th width="65">Preis</th>{% endif %}
+                {% if template_config.use_rating %}<th width="65">Bewertung</th>{% endif %}
             </tr>
         </thead>
         <tbody>
             {% for item in items %}
             <tr>
-                <td style="text-align: center; vertical-align: middle;" width="35">
-                    <input type="checkbox" name="item_{{ item.id }}" {% if item.is_completed %}checked="checked"{% endif %}>
+                <td style="text-align: center; font-weight: bold;">
+                    {% if item.is_completed %}[x]{% else %}[ ]{% endif %}
                 </td>
-                <td class="{% if item.is_completed %}completed{% endif %}">
-                    <strong>{{ item.title }}</strong>
-                    {% if item.notes %}<br/><small>{{ item.notes }}</small>{% endif %}
+                <td>
+                    <div class="{% if item.is_completed %}completed{% endif %}">
+                        <strong>{{ item.title }}</strong>
+                        {% with st=item.effective_status_info %}
+                            {% if st %}<span class="badge">{{ st.label }}</span>{% endif %}
+                        {% endwith %}
+                        {% if item.domain_category %}
+                            <span class="badge">{{ item.domain_category.name }}</span>
+                        {% endif %}
+                    </div>
+
+                    {% if pdf_cfg.include_notes and item.notes %}
+                        <div class="meta">{{ item.notes }}</div>
+                    {% endif %}
+
+                    {% if pdf_cfg.include_dates %}
+                        {% if item.start_date or item.end_date or item.location %}
+                        <div class="meta">
+                            {% if item.start_date %}Start: {{ item.start_date|date:"d.m.Y H:i" }} · {% endif %}
+                            {% if item.end_date %}Ende: {{ item.end_date|date:"d.m.Y H:i" }} · {% endif %}
+                            {% if item.location %}Ort: {{ item.location }}{% endif %}
+                        </div>
+                        {% endif %}
+                    {% endif %}
+
+                    {% if pdf_cfg.include_persons and item.person_roles.exists %}
+                        <div class="meta">
+                            <strong>Personen:</strong>
+                            {% for role in item.person_roles.all %}
+                                {{ role.person.name }} ({{ role.get_role_display }}){% if not forloop.last %}, {% endif %}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    {% if pdf_cfg.include_custom_fields %}
+                        {% with cf_list=item.get_custom_field_display %}
+                        {% if cf_list %}
+                        <div class="meta">
+                            {% for cf in cf_list %}
+                                <span class="badge">{{ cf.label }}: {{ cf.value }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        {% endwith %}
+                    {% endif %}
+
+                    {% if pdf_cfg.include_photos and template_config.use_image %}
+                        {% with photos=item.get_all_photos %}
+                        {% if photos %}
+                        <div class="photo-strip">
+                            {% for p in photos %}
+                            <div class="photo-box">
+                                <img src="{{ p.url }}" alt="{{ p.caption|default:item.title }}">
+                                {% if template_config.use_image_checklist and p.id %}
+                                    <div class="photo-cap">{% if p.is_checked %}[x]{% else %}[ ]{% endif %} {{ p.caption|default:"Foto" }}</div>
+                                {% elif p.caption %}
+                                    <div class="photo-cap">{{ p.caption }}</div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        {% endwith %}
+                    {% endif %}
+
+                    {% if pdf_cfg.include_subchecklist and item.subchecklist_json %}
+                        {% if template_config.use_subchecklist or template_config.use_subchecklist_photos %}
+                        <div class="sublist">
+                            {% for sub in item.subchecklist_json %}
+                            <div class="subrow">
+                                {% if sub.done %}[x]{% else %}[ ]{% endif %}
+                                {% if sub.image %}<img src="{{ sub.image }}" alt="{{ sub.title }}" style="height: 22px; vertical-align: middle; margin: 0 4px;">{% endif %}
+                                <span class="{% if sub.done %}completed{% endif %}">{{ sub.title }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    {% endif %}
                 </td>
                 {% if template_config.use_amount %}<td>{{ item.amount|default:"-" }}</td>{% endif %}
                 {% if template_config.use_brand %}<td>{{ item.brand|default:"-" }}</td>{% endif %}
@@ -203,26 +243,20 @@
                 {% if template_config.use_price %}<td>{% if item.price %}{{ item.price }} €{% else %}-{% endif %}</td>{% endif %}
                 {% if template_config.use_rating %}
                 <td>
-                    {% if item.rating %}
-                        {% for i in "12345" %}
-                            {% if forloop.counter <= item.rating %}★{% else %}☆{% endif %}
-                        {% endfor %}
-                    {% else %}
-                        -
-                    {% endif %}
+                    {% if item.rating %}{{ item.rating }}/5{% else %}-{% endif %}
                 </td>
                 {% endif %}
             </tr>
             {% empty %}
             <tr>
-                <td colspan="6" style="text-align: center;">Keine Einträge vorhanden.</td>
+                <td colspan="7" style="text-align: center; color: #777;">Keine Einträge vorhanden.</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 
     <div class="footer">
-        Generiert mit buckezz am {% now "d.m.Y H:i" %}
+        {% if pdf_cfg.footer_text %}{{ pdf_cfg.footer_text }} · {% endif %}Generiert mit buckezz am {% now "d.m.Y H:i" %}
     </div>
 </body>
 </html>

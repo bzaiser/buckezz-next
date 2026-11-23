@@ -1043,3 +1043,57 @@ class BuckezzRegressionTests(TestCase):
         self.assertEqual(person.email, 'anna@example.com')
         self.assertEqual(person.phone, '+49 171 999888')
         self.assertEqual(UserSetting.objects.get(user=user).timezone, 'Europe/Vienna')
+
+    def test_builder_pdf_config_and_pdf_export(self):
+        from core.models import ListCategory, ListTemplate, BucketList, ListItem
+
+        staff = User.objects.create_user(username='pdf_staff', password='secret', is_staff=True)
+        self.client.force_login(staff)
+
+        resp = self.client.post(reverse('core:template_studio_create'), {
+            'name': 'PDF Liste',
+            'icon': '📄',
+            'logic_type': 'generic',
+            'use_price': 'on',
+            'use_image': 'on',
+            'use_image_checklist': 'on',
+            'use_subchecklist': 'on',
+            'pdf_orientation': 'landscape',
+            'pdf_filter': 'open',
+            'pdf_include_summary': 'on',
+            'pdf_include_notes': 'on',
+            'pdf_include_photos': 'on',
+            'pdf_include_subchecklist': 'on',
+            'pdf_include_custom_fields': 'on',
+            'pdf_include_persons': 'on',
+            'pdf_include_dates': 'on',
+            'pdf_footer_text': 'Vereins-Export',
+        })
+        self.assertRedirects(resp, reverse('core:template_studio'))
+
+        cat = ListCategory.objects.get(name='PDF Liste')
+        pdf_cfg = cat.template.ui_style_json.get('pdf', {})
+        self.assertEqual(pdf_cfg.get('orientation'), 'landscape')
+        self.assertEqual(pdf_cfg.get('filter'), 'open')
+        self.assertEqual(pdf_cfg.get('footer_text'), 'Vereins-Export')
+
+        bucket = BucketList.objects.create(title='Test PDF', category=cat, owner=staff)
+        ListItem.objects.create(
+            bucket_list=bucket,
+            title='Offener Punkt',
+            notes='Notiz',
+            price=12.50,
+            subchecklist_json=[{'title': 'Unterpunkt 1', 'done': False}],
+            created_by=staff,
+        )
+        ListItem.objects.create(
+            bucket_list=bucket,
+            title='Erledigter Punkt',
+            is_completed=True,
+            created_by=staff,
+        )
+
+        pdf_resp = self.client.get(reverse('core:export_pdf', args=[bucket.id]))
+        self.assertEqual(pdf_resp.status_code, 200)
+        self.assertEqual(pdf_resp['Content-Type'], 'application/pdf')
+        self.assertTrue(pdf_resp.content.startswith(b'%PDF'))
