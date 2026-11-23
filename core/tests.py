@@ -236,6 +236,66 @@ class BuckezzRegressionTests(TestCase):
         for remaining in ListItemImage.objects.filter(item=created):
             remaining.image.delete(save=False)
 
+    def test_photo_gallery_captions_and_image_checklist(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from core.models import ListItemImage
+
+        self.template.use_image = True
+        self.template.use_image_checklist = True
+        self.template.use_subchecklist = True
+        self.template.save()
+        self.client.force_login(self.user)
+
+        tiny_png = (
+            b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01'
+            b'\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\nIDATx\x9cc\x00\x01'
+            b'\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
+        )
+        img1 = SimpleUploadedFile('k1.png', tiny_png, content_type='image/png')
+        img2 = SimpleUploadedFile('k2.png', tiny_png, content_type='image/png')
+
+        resp = self.client.post(reverse('core:add_item', args=[self.bucket.id]), {
+            'title': 'Verliehene Sachen',
+            'notes': '',
+            'images': [img1, img2],
+            'new_image_captions': ['Akkuschrauber', 'Leiter'],
+            'subchecklist_text': 'Ladegerät\nKoffer',
+        })
+        self.assertIn(resp.status_code, (200, 204, 302))
+
+        created = ListItem.objects.get(title='Verliehene Sachen')
+        imgs = list(created.images.order_by('id'))
+        self.assertEqual(len(imgs), 2)
+        self.assertEqual(imgs[0].caption, 'Akkuschrauber')
+        self.assertEqual(imgs[1].caption, 'Leiter')
+        self.assertEqual(len(created.subchecklist_json), 2)
+
+        # Toggle first photo checked
+        toggle_resp = self.client.post(
+            reverse('core:toggle_item_image', args=[created.id, imgs[0].id]),
+            HTTP_HX_REQUEST='true',
+        )
+        self.assertEqual(toggle_resp.status_code, 200)
+        imgs[0].refresh_from_db()
+        self.assertTrue(imgs[0].is_checked)
+        self.assertContains(toggle_resp, 'carousel')
+        self.assertContains(toggle_resp, 'openPhotoLightboxFromEl')
+        self.assertContains(toggle_resp, 'Fotos abhaken')
+        self.assertContains(toggle_resp, 'Einzelpunkte:')
+
+        # Edit caption of second photo
+        edit_resp = self.client.post(reverse('core:edit_item', args=[created.id]), {
+            'title': 'Verliehene Sachen',
+            'notes': '',
+            f'existing_image_caption_{imgs[1].id}': 'Alu-Leiter 3m',
+        })
+        self.assertIn(edit_resp.status_code, (200, 204, 302))
+        imgs[1].refresh_from_db()
+        self.assertEqual(imgs[1].caption, 'Alu-Leiter 3m')
+
+        for img in ListItemImage.objects.filter(item=created):
+            img.image.delete(save=False)
+
     def test_custom_statuses_and_logic_builder_rules(self):
         staff = User.objects.create_user(username='logic_admin', password='secret', is_staff=True)
         self.client.force_login(staff)

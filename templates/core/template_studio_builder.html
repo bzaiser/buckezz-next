@@ -615,19 +615,27 @@
                                 </template>
 
                                 <!-- Interaktive 3-Zonen-Vorschau + Hidden-Zone -->
-                                <div x-show="!isActive('use_tracker')" class="card shadow-sm rounded-3 p-2 d-flex flex-column gap-2">
+                                <div x-show="!isActive('use_tracker')"
+                                     class="card shadow-sm rounded-3 p-2 d-flex flex-column gap-2"
+                                     :class="uiStyle.layout_mode === 'row' ? 'border-0 border-bottom rounded-0 shadow-none' : ''">
                                     <!-- Zone 1: Kopfzeile -->
                                     <div>
-                                        <div class="d-flex align-items-center gap-2 mb-1">
-                                            <input type="checkbox" class="form-check-input mt-0" disabled>
-                                            <strong class="small" x-text="sampleData.title"></strong>
-                                            <span class="badge text-bg-info" x-text="allowedStatuses[0]?.label || 'Offen'"></span>
+                                        <div class="d-flex align-items-center justify-content-between gap-2 mb-1">
+                                            <div class="d-flex align-items-center gap-2 min-w-0">
+                                                <input type="checkbox" class="form-check-input mt-0">
+                                                <strong class="small text-truncate" x-text="sampleData.title"></strong>
+                                                <span class="badge text-bg-info" x-text="allowedStatuses[0]?.label || 'Offen'"></span>
+                                            </div>
+                                            <span x-show="summaryRule.enabled" class="badge text-bg-secondary small">
+                                                <span x-text="summaryRule.label || 'Summe'"></span>: 42 <span x-text="summaryRule.unit"></span>
+                                            </span>
                                         </div>
                                         <div class="card-zone-drop d-flex flex-wrap gap-1 p-2 rounded-2 border border-dashed bg-body-tertiary" data-zone="header" style="min-height: 38px;">
                                             <template x-for="fid in cardLayout.header" :key="'zh-' + fid">
                                                 <div class="badge bg-body text-body border d-inline-flex align-items-center gap-1 py-1 px-2" :data-field-id="fid" style="cursor: grab;">
                                                     <i class="bi bi-grip-vertical text-muted"></i>
                                                     <span x-text="fieldPreviewText(fid)"></span>
+                                                    <button type="button" @click="moveFieldToZone(fid, 'body')" class="btn btn-sm p-0 border-0 text-secondary ms-1 lh-1" title="In Mitte verschieben"><i class="bi bi-arrow-down-short"></i></button>
                                                     <button type="button" @click="hideFieldOnCard(fid)" class="btn-close ms-1" style="font-size: 0.55rem;" title="Auf Card ausblenden"></button>
                                                 </div>
                                             </template>
@@ -643,11 +651,35 @@
                                                 <div class="badge bg-body text-body border d-inline-flex align-items-center gap-1 py-1 px-2" :data-field-id="fid" style="cursor: grab;">
                                                     <i class="bi bi-grip-vertical text-muted"></i>
                                                     <span x-text="fieldPreviewText(fid)"></span>
+                                                    <button type="button" @click="moveFieldToZone(fid, 'header')" class="btn btn-sm p-0 border-0 text-secondary ms-1 lh-1" title="In Kopfzeile"><i class="bi bi-arrow-up-short"></i></button>
+                                                    <button type="button" @click="moveFieldToZone(fid, 'footer')" class="btn btn-sm p-0 border-0 text-secondary lh-1" title="In Fußzeile"><i class="bi bi-arrow-down-short"></i></button>
                                                     <button type="button" @click="hideFieldOnCard(fid)" class="btn-close ms-1" style="font-size: 0.55rem;" title="Auf Card ausblenden"></button>
                                                 </div>
                                             </template>
                                             <span x-show="cardLayout.body.length === 0" class="small text-muted">Mittelbereich (hierher ziehen)</span>
                                         </div>
+                                    </div>
+
+                                    <!-- Live-Vorschau Foto-Galerie / Abhakliste / Einzelpunkte -->
+                                    <div x-show="isActive('use_image')" class="border rounded-2 p-2 bg-body-tertiary d-flex flex-column gap-1">
+                                        <div class="d-flex align-items-center justify-content-between small text-muted">
+                                            <span><i class="bi bi-images me-1"></i>Foto-Karussell (Beispiel 1 / 2)</span>
+                                            <span x-show="isActive('use_image_checklist')" class="badge text-bg-secondary">1 / 2 abgehakt</span>
+                                        </div>
+                                        <div class="d-flex gap-2 align-items-center">
+                                            <span class="badge text-bg-light border py-2 px-3"><i class="bi bi-image me-1"></i>Foto 1</span>
+                                            <span class="badge text-bg-light border py-2 px-3"><i class="bi bi-image me-1"></i>Foto 2</span>
+                                        </div>
+                                        <div x-show="isActive('use_image_checklist')" class="d-flex flex-column gap-1 pt-1 small">
+                                            <label class="form-check mb-0"><input type="checkbox" class="form-check-input" checked> <span class="text-decoration-line-through text-muted" x-text="sampleData.sub1"></span></label>
+                                            <label class="form-check mb-0"><input type="checkbox" class="form-check-input"> <span x-text="sampleData.sub2"></span></label>
+                                        </div>
+                                    </div>
+
+                                    <div x-show="isActive('use_subchecklist') || isActive('use_subchecklist_photos')" class="ps-2 border-start small d-flex flex-column gap-1">
+                                        <div class="fw-semibold text-muted"><i class="bi bi-list-check me-1"></i>Einzelpunkte:</div>
+                                        <label class="form-check mb-0"><input type="checkbox" class="form-check-input"> <span x-text="sampleData.sub1"></span></label>
+                                        <label class="form-check mb-0"><input type="checkbox" class="form-check-input"> <span x-text="sampleData.sub2"></span></label>
                                     </div>
 
                                     <!-- Zone 3: Fußzeile -->
@@ -659,6 +691,7 @@
                                                     <div class="badge bg-body text-body border d-inline-flex align-items-center gap-1 py-1 px-2" :data-field-id="fid" style="cursor: grab;">
                                                         <i class="bi bi-grip-vertical text-muted"></i>
                                                         <span x-text="fieldPreviewText(fid)"></span>
+                                                        <button type="button" @click="moveFieldToZone(fid, 'body')" class="btn btn-sm p-0 border-0 text-secondary ms-1 lh-1" title="In Mitte verschieben"><i class="bi bi-arrow-up-short"></i></button>
                                                         <button type="button" @click="hideFieldOnCard(fid)" class="btn-close ms-1" style="font-size: 0.55rem;" title="Auf Card ausblenden"></button>
                                                     </div>
                                                 </template>
@@ -691,17 +724,17 @@
                             </div>
                         </div>
 
-                        <!-- Formular-Vorschau mit Beispieldaten -->
+                        <!-- Formular-Vorschau mit Beispieldaten (interaktiv testbar) -->
                         <div class="border rounded-3 p-3">
-                            <div class="small text-muted text-uppercase fw-bold mb-2">Vorschau: Eingabe-Formular</div>
+                            <div class="small text-muted text-uppercase fw-bold mb-2">Vorschau: Eingabe-Formular (interaktiv)</div>
                             <div class="d-flex flex-column gap-2 small">
                                 <div>
                                     <label class="form-label mb-1 fw-semibold">Titel / Bezeichnung *</label>
-                                    <input type="text" class="form-control form-control-sm" :value="sampleData.title" disabled>
+                                    <input type="text" class="form-control form-control-sm" :value="sampleData.title">
                                 </div>
                                 <div x-show="allowedStatuses.length > 0">
                                     <label class="form-label mb-1 fw-semibold">Status</label>
-                                    <select class="form-select form-select-sm" disabled>
+                                    <select class="form-select form-select-sm">
                                         <template x-for="(st, idx) in allowedStatuses" :key="'pst-' + idx">
                                             <option x-text="st.label || st.key"></option>
                                         </template>
@@ -710,32 +743,102 @@
                                 <div class="row g-2" x-show="isActive('use_amount') || isActive('use_price')">
                                     <div class="col-6" x-show="isActive('use_amount')">
                                         <label class="form-label mb-1 fw-semibold">Menge</label>
-                                        <input type="text" class="form-control form-control-sm" :value="sampleData.amount" disabled>
+                                        <input type="text" class="form-control form-control-sm" :value="sampleData.amount">
                                     </div>
                                     <div class="col-6" x-show="isActive('use_price')">
                                         <label class="form-label mb-1 fw-semibold">Preis (€)</label>
-                                        <input type="text" class="form-control form-control-sm" :value="sampleData.price" disabled>
+                                        <input type="text" class="form-control form-control-sm" :value="sampleData.price">
                                     </div>
                                 </div>
-                                <div x-show="isActive('use_brand')">
-                                    <label class="form-label mb-1 fw-semibold">Marke</label>
-                                    <input type="text" class="form-control form-control-sm" :value="sampleData.brand" disabled>
+                                <div class="row g-2" x-show="isActive('use_brand') || isActive('use_shop')">
+                                    <div class="col-6" x-show="isActive('use_brand')">
+                                        <label class="form-label mb-1 fw-semibold">Marke</label>
+                                        <input type="text" class="form-control form-control-sm" :value="sampleData.brand">
+                                    </div>
+                                    <div class="col-6" x-show="isActive('use_shop')">
+                                        <label class="form-label mb-1 fw-semibold">Geschäft / Shop</label>
+                                        <input type="text" class="form-control form-control-sm" :value="sampleData.shop">
+                                    </div>
                                 </div>
                                 <div x-show="isActive('use_location')">
-                                    <label class="form-label mb-1 fw-semibold">Ort</label>
-                                    <input type="text" class="form-control form-control-sm" :value="sampleData.location" disabled>
+                                    <label class="form-label mb-1 fw-semibold">Ort / Adresse</label>
+                                    <input type="text" class="form-control form-control-sm" :value="sampleData.location">
+                                </div>
+                                <div x-show="isActive('use_url')">
+                                    <label class="form-label mb-1 fw-semibold">Produkt-URL</label>
+                                    <input type="url" class="form-control form-control-sm" value="https://beispiel.de">
+                                </div>
+                                <div class="row g-2" x-show="isActive('use_start_date') || isActive('use_end_date') || isActive('use_reminder')">
+                                    <div class="col-4" x-show="isActive('use_start_date')">
+                                        <label class="form-label mb-1 fw-semibold">Start</label>
+                                        <input type="date" class="form-control form-control-sm" value="2026-11-23">
+                                    </div>
+                                    <div class="col-4" x-show="isActive('use_end_date')">
+                                        <label class="form-label mb-1 fw-semibold">Ende</label>
+                                        <input type="date" class="form-control form-control-sm" value="2026-11-30">
+                                    </div>
+                                    <div class="col-4" x-show="isActive('use_reminder')">
+                                        <label class="form-label mb-1 fw-semibold">Erinnerung</label>
+                                        <input type="date" class="form-control form-control-sm" value="2026-11-29">
+                                    </div>
+                                </div>
+                                <div class="row g-2" x-show="isActive('use_domain_category') || isActive('use_milestone')">
+                                    <div class="col-6" x-show="isActive('use_domain_category')">
+                                        <label class="form-label mb-1 fw-semibold">Kategorie</label>
+                                        <select class="form-select form-select-sm"><option>Allgemein</option><option>Wichtig</option></select>
+                                    </div>
+                                    <div class="col-6" x-show="isActive('use_milestone')">
+                                        <label class="form-label mb-1 fw-semibold">Meilenstein</label>
+                                        <select class="form-select form-select-sm"><option>Vor 30</option><option>Vor 40</option></select>
+                                    </div>
+                                </div>
+                                <div x-show="isActive('use_rating')">
+                                    <label class="form-label mb-1 fw-semibold">Bewertung</label>
+                                    <div class="text-warning fs-6">★★★★☆</div>
                                 </div>
                                 <div x-show="isActive('use_persons')">
                                     <label class="form-label mb-1 fw-semibold">Personen &amp; Rollen</label>
-                                    <input type="text" class="form-control form-control-sm" :value="'Max Mustermann (' + (allowedRoles[0]?.label || 'Zuständig') + ')'" disabled>
+                                    <input type="text" class="form-control form-control-sm" :value="'Max Mustermann (' + (allowedRoles[0]?.label || 'Zuständig') + ')'">
+                                </div>
+                                <div x-show="isActive('use_image')" class="border rounded-2 p-2 bg-body-tertiary">
+                                    <label class="form-label mb-1 fw-semibold"><i class="bi bi-images me-1"></i>Fotos / Belege (inkl. Textzeile)</label>
+                                    <input type="file" class="form-control form-control-sm mb-1" multiple accept="image/*">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text"><i class="bi bi-image"></i></span>
+                                        <input type="text" class="form-control" :value="sampleData.sub1" placeholder="Textzeile zum Foto">
+                                    </div>
+                                </div>
+                                <div x-show="isActive('use_subchecklist_photos') || isActive('use_subchecklist')">
+                                    <label class="form-label mb-1 fw-semibold" x-text="isActive('use_subchecklist_photos') ? 'Teil-Checkliste (mit Foto pro Eintrag)' : 'Einzelpunkte (eine pro Zeile)'"></label>
+                                    <textarea rows="2" class="form-control form-control-sm" :value="sampleData.sub1 + '\n' + sampleData.sub2"></textarea>
                                 </div>
                                 <div x-show="logicRules.enable_self_reserve">
-                                    <span class="btn btn-outline-primary btn-sm disabled" x-text="logicRules.reserve_button_label || 'Übernehmen'"></span>
+                                    <button type="button" class="btn btn-outline-primary btn-sm" x-text="logicRules.reserve_button_label || 'Übernehmen'"></button>
                                 </div>
                                 <template x-for="(cf, idx) in customFields" :key="'pcf-' + idx">
                                     <div x-show="cf.label">
                                         <label class="form-label mb-1 fw-semibold" x-text="cf.label"></label>
-                                        <input type="text" class="form-control form-control-sm" :value="cf.type === 'checkbox' ? 'Ja' : ('Beispiel ' + cf.label)" disabled>
+                                        <template x-if="cf.type === 'checkbox'">
+                                            <div class="form-check">
+                                                <input type="checkbox" class="form-check-input">
+                                                <span class="form-check-label" x-text="cf.label"></span>
+                                            </div>
+                                        </template>
+                                        <template x-if="cf.type === 'textarea'">
+                                            <textarea rows="2" class="form-control form-control-sm" :placeholder="'Beispiel ' + cf.label"></textarea>
+                                        </template>
+                                        <template x-if="cf.type === 'select' || cf.type === 'radio'">
+                                            <select class="form-select form-select-sm">
+                                                <template x-for="opt in (cf.options || 'Option 1, Option 2').split(',')" :key="opt">
+                                                    <option x-text="opt.trim()"></option>
+                                                </template>
+                                            </select>
+                                        </template>
+                                        <template x-if="cf.type !== 'checkbox' && cf.type !== 'textarea' && cf.type !== 'select' && cf.type !== 'radio'">
+                                            <input :type="cf.type === 'date' ? 'date' : (cf.type === 'number' || cf.type === 'currency' ? 'number' : (cf.type === 'url' ? 'url' : 'text'))"
+                                                   class="form-control form-control-sm"
+                                                   :placeholder="'Beispiel ' + cf.label">
+                                        </template>
                                     </div>
                                 </template>
                                 <div x-show="summaryRule.enabled" class="alert alert-secondary py-1 px-2 mb-0 small">
@@ -948,6 +1051,7 @@
                     use_price: this.sampleData.price + ' €',
                     use_rating: '★★★★★',
                     use_image: '2 Fotos',
+                    use_image_checklist: 'Fotos abhakbar (1/2)',
                     use_url: 'Link',
                     use_persons: this.allowedRoles[0]?.label || 'Zuständig',
                     use_domain_category: 'Kategorie',
@@ -958,6 +1062,21 @@
                     use_subchecklist_photos: 'Punkte + Foto'
                 };
                 return map[fid] || (f ? f.label : fid);
+            },
+            moveFieldToZone(fid, targetZone) {
+                for (const z of ['header', 'body', 'footer', 'hidden']) {
+                    this.cardLayout[z] = this.cardLayout[z].filter(x => x !== fid);
+                }
+                if (!this.cardLayout[targetZone].includes(fid)) {
+                    this.cardLayout[targetZone].push(fid);
+                }
+                if (fid.startsWith('cf:')) {
+                    const cf = this.customFields.find(c => 'cf:' + c.key === fid);
+                    if (cf) {
+                        cf.zone = targetZone;
+                        cf.show_on_card = (targetZone !== 'hidden');
+                    }
+                }
             },
             hideFieldOnCard(fid) {
                 for (const z of ['header', 'body', 'footer']) {
@@ -1069,7 +1188,13 @@
                             group: 'cardZones',
                             animation: 150,
                             draggable: '[data-field-id]',
-                            onEnd: () => this.syncCardZonesFromDom()
+                            onEnd: (evt) => {
+                                this.syncCardZonesFromDom();
+                                // Restore DOM node back to original container so Alpine x-for owns DOM cleanly
+                                if (evt.from && evt.to && evt.from !== evt.to && evt.item) {
+                                    evt.item.remove();
+                                }
+                            }
                         });
                     });
                     const cfList = document.getElementById('custom-fields-sortable');

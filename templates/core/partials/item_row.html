@@ -150,20 +150,7 @@
             {% endif %}
 
             {% if bucket.category.template.use_image %}
-                {% if item.image or item.images.exists %}
-                <div class="d-flex flex-wrap gap-2 mt-2">
-                    {% if item.image %}
-                    <a href="{{ item.image.url }}" target="_blank">
-                        <img src="{{ item.image.url }}" alt="{{ item.title }}" class="img-thumbnail rounded-3" width="84">
-                    </a>
-                    {% endif %}
-                    {% for img in item.images.all %}
-                    <a href="{{ img.image.url }}" target="_blank">
-                        <img src="{{ img.image.url }}" alt="{{ item.title }} ({{ forloop.counter }})" class="img-thumbnail rounded-3" width="84">
-                    </a>
-                    {% endfor %}
-                </div>
-                {% endif %}
+                {% include 'core/partials/_photo_gallery.html' with gallery_suffix='row' %}
             {% endif %}
 
             {% if item.subchecklist_json %}
@@ -186,9 +173,9 @@
                                 <span class="form-check-label {% if sub.done %}text-decoration-line-through text-muted{% endif %}">{{ sub.title }}</span>
                             </label>
                             {% if sub.image %}
-                            <a href="{{ sub.image }}" target="_blank">
+                            <button type="button" class="btn p-0 border-0" onclick="openPhotoLightbox([{url: '{{ sub.image|escapejs }}', caption: '{{ sub.title|escapejs }}', title: '{{ item.title|escapejs }}'}], 0)" title="Im Leuchtkasten öffnen">
                                 <img src="{{ sub.image }}" alt="{{ sub.title }}" class="img-thumbnail rounded-2" width="44">
-                            </a>
+                            </button>
                             {% endif %}
                         </div>
                         {% endfor %}

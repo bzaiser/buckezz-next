@@ -96,6 +96,40 @@
         </div>
     </div>
 </div>
+
+<!-- Globaler Foto-Leuchtkasten Modal -->
+<div class="modal fade" id="photoLightboxModal" tabindex="-1" aria-labelledby="photoLightboxTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-fullscreen-sm-down">
+        <div class="modal-content bg-dark text-white border-0 rounded-4 overflow-hidden">
+            <div class="modal-header border-secondary border-opacity-25 py-2 px-3">
+                <div class="d-flex align-items-center gap-2 min-w-0">
+                    <i class="bi bi-images text-info"></i>
+                    <span id="photoLightboxCounter" class="badge text-bg-secondary">1 / 1</span>
+                    <h6 class="modal-title mb-0 text-truncate" id="photoLightboxTitle">Foto</h6>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Schließen"></button>
+            </div>
+            <div class="modal-body p-2 p-sm-3 d-flex align-items-center justify-content-center position-relative bg-black min-vh-50" id="photoLightboxStage">
+                <button type="button" id="photoLightboxPrev" class="btn btn-dark bg-opacity-75 border border-secondary border-opacity-50 rounded-circle position-absolute start-0 ms-2 top-50 translate-middle-y z-2 d-flex align-items-center justify-content-center" style="width: 44px; height: 44px;" aria-label="Vorheriges Foto">
+                    <i class="bi bi-chevron-left fs-5"></i>
+                </button>
+                <img id="photoLightboxImg" src="" alt="Vorschau" class="img-fluid rounded-2 object-fit-contain" style="max-height: 75vh;">
+                <button type="button" id="photoLightboxNext" class="btn btn-dark bg-opacity-75 border border-secondary border-opacity-50 rounded-circle position-absolute end-0 me-2 top-50 translate-middle-y z-2 d-flex align-items-center justify-content-center" style="width: 44px; height: 44px;" aria-label="Nächstes Foto">
+                    <i class="bi bi-chevron-right fs-5"></i>
+                </button>
+            </div>
+            <div class="modal-footer border-secondary border-opacity-25 py-2 px-3 d-flex justify-content-between align-items-center gap-2">
+                <div class="d-flex align-items-center gap-2 min-w-0">
+                    <span id="photoLightboxCheckedBadge" class="badge text-bg-success d-none"><i class="bi bi-check2-circle me-1"></i>Abgehakt</span>
+                    <span id="photoLightboxCaption" class="small text-light text-break"></span>
+                </div>
+                <a id="photoLightboxOpenRaw" href="#" target="_blank" rel="noopener" class="btn btn-sm btn-outline-light flex-shrink-0">
+                    <i class="bi bi-box-arrow-up-right me-1"></i>Original
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -164,6 +198,153 @@
             }
         } catch (e) {}
     })();
+
+    // Global Photo Lightbox Viewer
+    (function() {
+        let lbPhotos = [];
+        let lbIndex = 0;
+        let touchStartX = null;
+
+        function renderLightbox() {
+            if (!lbPhotos.length) return;
+            const current = lbPhotos[lbIndex] || lbPhotos[0];
+            const imgEl = document.getElementById('photoLightboxImg');
+            const capEl = document.getElementById('photoLightboxCaption');
+            const titleEl = document.getElementById('photoLightboxTitle');
+            const counterEl = document.getElementById('photoLightboxCounter');
+            const prevBtn = document.getElementById('photoLightboxPrev');
+            const nextBtn = document.getElementById('photoLightboxNext');
+            const rawLink = document.getElementById('photoLightboxOpenRaw');
+            const checkedBadge = document.getElementById('photoLightboxCheckedBadge');
+
+            imgEl.src = current.url || '';
+            imgEl.alt = current.caption || current.title || 'Foto';
+            titleEl.textContent = current.title || current.caption || 'Foto';
+            capEl.textContent = current.caption || '';
+            counterEl.textContent = (lbIndex + 1) + ' / ' + lbPhotos.length;
+            rawLink.href = current.url || '#';
+            if (current.is_checked) {
+                checkedBadge.classList.remove('d-none');
+            } else {
+                checkedBadge.classList.add('d-none');
+            }
+            const multi = lbPhotos.length > 1;
+            prevBtn.classList.toggle('d-none', !multi);
+            nextBtn.classList.toggle('d-none', !multi);
+        }
+
+        window.openPhotoLightbox = function(photos, startIndex) {
+            if (!Array.isArray(photos) || !photos.length) return;
+            lbPhotos = photos;
+            lbIndex = Math.max(0, Math.min(Number(startIndex) || 0, photos.length - 1));
+            renderLightbox();
+            const modalEl = document.getElementById('photoLightboxModal');
+            if (modalEl && window.bootstrap) {
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            }
+        };
+
+        window.openPhotoLightboxFromEl = function(el, startIndex) {
+            if (!el) return;
+            const holder = el.closest('[data-lightbox-photos]') || el;
+            try {
+                const raw = holder.getAttribute('data-lightbox-photos') || '[]';
+                const photos = JSON.parse(raw);
+                window.openPhotoLightbox(photos, startIndex);
+            } catch (e) {
+                console.error('Lightbox parse error:', e);
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const prevBtn = document.getElementById('photoLightboxPrev');
+            const nextBtn = document.getElementById('photoLightboxNext');
+            const stage = document.getElementById('photoLightboxStage');
+            const modalEl = document.getElementById('photoLightboxModal');
+            if (prevBtn) prevBtn.addEventListener('click', function() {
+                if (lbPhotos.length < 2) return;
+                lbIndex = (lbIndex - 1 + lbPhotos.length) % lbPhotos.length;
+                renderLightbox();
+            });
+            if (nextBtn) nextBtn.addEventListener('click', function() {
+                if (lbPhotos.length < 2) return;
+                lbIndex = (lbIndex + 1) % lbPhotos.length;
+                renderLightbox();
+            });
+            if (stage) {
+                stage.addEventListener('touchstart', function(e) {
+                    if (e.changedTouches && e.changedTouches.length) {
+                        touchStartX = e.changedTouches[0].clientX;
+                    }
+                }, { passive: true });
+                stage.addEventListener('touchend', function(e) {
+                    if (touchStartX === null || lbPhotos.length < 2 || !e.changedTouches || !e.changedTouches.length) return;
+                    const dx = e.changedTouches[0].clientX - touchStartX;
+                    touchStartX = null;
+                    if (Math.abs(dx) > 40) {
+                        lbIndex = dx < 0
+                            ? (lbIndex + 1) % lbPhotos.length
+                            : (lbIndex - 1 + lbPhotos.length) % lbPhotos.length;
+                        renderLightbox();
+                    }
+                }, { passive: true });
+            }
+            document.addEventListener('keydown', function(e) {
+                if (!modalEl || !modalEl.classList.contains('show') || lbPhotos.length < 2) return;
+                if (e.key === 'ArrowLeft') {
+                    lbIndex = (lbIndex - 1 + lbPhotos.length) % lbPhotos.length;
+                    renderLightbox();
+                } else if (e.key === 'ArrowRight') {
+                    lbIndex = (lbIndex + 1) % lbPhotos.length;
+                    renderLightbox();
+                }
+            });
+        });
+    })();
+
+    // Client-side image resize/compression before upload (prevents iPhone multi-photo upload hangs)
+    window.compressImageFile = function(file, maxDim, quality) {
+        maxDim = maxDim || 1600;
+        quality = quality || 0.82;
+        return new Promise(function(resolve) {
+            if (!file || !file.type || !file.type.startsWith('image/') || file.type === 'image/gif') {
+                return resolve(file);
+            }
+            const reader = new FileReader();
+            reader.onerror = function() { resolve(file); };
+            reader.onload = function(ev) {
+                const img = new Image();
+                img.onerror = function() { resolve(file); };
+                img.onload = function() {
+                    let w = img.naturalWidth || img.width;
+                    let h = img.naturalHeight || img.height;
+                    if (!w || !h) return resolve(file);
+                    const scale = Math.min(1, maxDim / Math.max(w, h));
+                    const targetW = Math.round(w * scale);
+                    const targetH = Math.round(h * scale);
+                    const canvas = document.createElement('canvas');
+                    canvas.width = targetW;
+                    canvas.height = targetH;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) return resolve(file);
+                    ctx.drawImage(img, 0, 0, targetW, targetH);
+                    canvas.toBlob(function(blob) {
+                        if (!blob || (scale === 1 && blob.size >= file.size)) {
+                            return resolve(file);
+                        }
+                        const baseName = (file.name || 'photo').replace(/\.[^.]+$/, '');
+                        try {
+                            resolve(new File([blob], baseName + '.jpg', { type: 'image/jpeg', lastModified: Date.now() }));
+                        } catch (e) {
+                            resolve(blob);
+                        }
+                    }, 'image/jpeg', quality);
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    };
 </script>
 {% block page_js %}{% endblock %}
 {% endblock %}

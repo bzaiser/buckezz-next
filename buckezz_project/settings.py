@@ -191,6 +191,10 @@ STATICFILES_DIRS = [BUNDLE_DIR / 'static'] if (BUNDLE_DIR / 'static').exists() e
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+DATA_UPLOAD_MAX_MEMORY_SIZE = 25 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 25 * 1024 * 1024
+DATA_UPLOAD_MAX_NUMBER_FILES = 50
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # PWA Settings

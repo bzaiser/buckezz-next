@@ -21,12 +21,22 @@ def _save_item_media_and_subchecklist(request, item, data):
         item.image = request.FILES['image']
         changed = True
 
-    for img_file in request.FILES.getlist('images'):
-        ListItemImage.objects.create(item=item, image=img_file)
+    new_captions = data.getlist('new_image_captions')
+    for idx, img_file in enumerate(request.FILES.getlist('images')):
+        cap = (new_captions[idx] if idx < len(new_captions) else '').strip()[:200]
+        ListItemImage.objects.create(item=item, image=img_file, caption=cap)
 
     delete_ids = [int(i) for i in data.getlist('delete_image_ids') if str(i).isdigit()]
     if delete_ids:
         item.images.filter(id__in=delete_ids).delete()
+
+    for img in item.images.all():
+        cap_key = f'existing_image_caption_{img.id}'
+        if cap_key in data:
+            new_cap = (data.get(cap_key) or '').strip()[:200]
+            if img.caption != new_cap:
+                img.caption = new_cap
+                img.save(update_fields=['caption'])
 
     if 'sub_title' in data:
         existing_states = {
@@ -1474,6 +1484,25 @@ class ToggleSubCheckitemView(View):
             return render_item_list(request, bucket, True)
         return HttpResponse(status=204)
 
+class ToggleItemImageView(View):
+    def post(self, request, item_id, image_id):
+        item = get_object_or_404(ListItem, id=item_id)
+        bucket = item.bucket_list
+        can_edit = bucket.owner == request.user or \
+                  (request.user.is_authenticated and request.user in bucket.shared_with.all()) or \
+                  (bucket.is_public and bucket.allow_public_edit) or \
+                  (request.user.is_authenticated and request.user.is_superuser)
+        if not can_edit:
+            return HttpResponseForbidden()
+
+        img = get_object_or_404(ListItemImage, id=image_id, item=item)
+        img.is_checked = not img.is_checked
+        img.save(update_fields=['is_checked'])
+
+        if request.htmx:
+            return render_item_list(request, bucket, True)
+        return HttpResponse(status=204)
+
 class DeleteItemView(View):
     def delete(self, request, pk):
         return self._do_delete(request, pk)
@@ -2577,6 +2606,7 @@ TEMPLATE_STUDIO_FIELDS = [
     {"key": "use_tracker", "label": "Routine-Tracker", "icon": "bi-arrow-repeat", "desc": "Uhrzeiten-Chips & Vorrats-Bestand"},
     {"key": "use_milestone", "label": "Meilensteine", "icon": "bi-trophy", "desc": "Lebensabschnitte (Vor 30, Vor 40, ...)"},
     {"key": "use_image", "label": "Foto / Beleg", "icon": "bi-camera", "desc": "Kamera- oder Mehrfach-Bild-Upload pro Eintrag"},
+    {"key": "use_image_checklist", "label": "Fotos einzeln abhakbar", "icon": "bi-check2-square", "desc": "Hochgeladene Fotos mit Bezeichnung einzeln abhaken (z.B. Verliehen/Zurück)"},
     {"key": "use_subchecklist", "label": "Teil-Checkliste", "icon": "bi-list-check", "desc": "Unterpunkte zum separaten Abhaken"},
     {"key": "use_subchecklist_photos", "label": "Teil-Checkliste mit Foto", "icon": "bi-images", "desc": "Unterpunkte mit eigenem Foto pro Eintrag"},
 ]

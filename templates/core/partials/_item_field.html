@@ -31,20 +31,7 @@
     </span>
     {% endif %}
 {% elif field_key == 'use_image' and bucket.category.template.use_image %}
-    {% if item.image or item.images.exists %}
-    <div class="d-flex flex-wrap gap-2">
-        {% if item.image %}
-        <a href="{{ item.image.url }}" target="_blank">
-            <img src="{{ item.image.url }}" alt="{{ item.title }}" class="img-thumbnail rounded-3" width="84">
-        </a>
-        {% endif %}
-        {% for img in item.images.all %}
-        <a href="{{ img.image.url }}" target="_blank">
-            <img src="{{ img.image.url }}" alt="{{ item.title }} ({{ forloop.counter }})" class="img-thumbnail rounded-3" width="84">
-        </a>
-        {% endfor %}
-    </div>
-    {% endif %}
+    {% include 'core/partials/_photo_gallery.html' with gallery_suffix='field' %}
 {% elif field_key == 'use_subchecklist' or field_key == 'use_subchecklist_photos' %}
     {% if item.subchecklist_json %}
         {% if bucket.category.template.use_subchecklist or bucket.category.template.use_subchecklist_photos %}
@@ -59,7 +46,9 @@
                         <span class="form-check-label {% if sub.done %}text-decoration-line-through text-muted{% endif %}">{{ sub.title }}</span>
                     </label>
                     {% if sub.image %}
-                    <a href="{{ sub.image }}" target="_blank"><img src="{{ sub.image }}" alt="{{ sub.title }}" class="img-thumbnail rounded-2" width="44"></a>
+                    <button type="button" class="btn p-0 border-0" onclick="openPhotoLightbox([{url: '{{ sub.image|escapejs }}', caption: '{{ sub.title|escapejs }}', title: '{{ item.title|escapejs }}'}], 0)" title="Im Leuchtkasten öffnen">
+                        <img src="{{ sub.image }}" alt="{{ sub.title }}" class="img-thumbnail rounded-2" width="44">
+                    </button>
                     {% endif %}
                 </div>
                 {% endfor %}

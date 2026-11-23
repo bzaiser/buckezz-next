@@ -324,27 +324,33 @@
                     {% endif %}
 
                     {% if bucket.category.template.use_image %}
-                    <div>
-                        <label class="form-label fw-semibold">Fotos / Belege (Mehrfachauswahl möglich)</label>
+                    <div class="border rounded-3 p-3 bg-body-tertiary bg-opacity-50">
+                        <label class="form-label fw-semibold">
+                            <i class="bi bi-images me-1"></i>Fotos / Belege (Mehrfachauswahl möglich)
+                        </label>
                         {% if item.image or item.images.exists %}
-                        <div class="d-flex flex-wrap gap-2 mb-2">
+                        <div class="d-flex flex-column gap-2 mb-3">
                             {% if item.image %}
-                            <div class="border rounded-3 p-1 text-center">
-                                <a href="{{ item.image.url }}" target="_blank" class="d-block mb-1">
-                                    <img src="{{ item.image.url }}" alt="Vorschau" class="img-thumbnail rounded-2" width="72">
-                                </a>
-                                <label class="form-check form-check-inline small mb-0">
+                            <div class="border rounded-3 p-2 bg-body d-flex align-items-center gap-2">
+                                <button type="button" class="btn p-0 border-0 flex-shrink-0" onclick="openPhotoLightbox([{url: '{{ item.image.url|escapejs }}', caption: '', title: '{{ item.title|escapejs }}'}], 0)">
+                                    <img src="{{ item.image.url }}" alt="Vorschau" class="img-thumbnail rounded-2 object-fit-cover" style="width: 56px; height: 56px;">
+                                </button>
+                                <div class="flex-grow-1 small text-muted">Einzelfoto</div>
+                                <label class="form-check form-check-inline small mb-0 flex-shrink-0">
                                     <input class="form-check-input" type="checkbox" name="delete_main_image" value="1">
                                     <span class="form-check-label text-danger">Löschen</span>
                                 </label>
                             </div>
                             {% endif %}
                             {% for img in item.images.all %}
-                            <div class="border rounded-3 p-1 text-center">
-                                <a href="{{ img.image.url }}" target="_blank" class="d-block mb-1">
-                                    <img src="{{ img.image.url }}" alt="Foto {{ forloop.counter }}" class="img-thumbnail rounded-2" width="72">
-                                </a>
-                                <label class="form-check form-check-inline small mb-0">
+                            <div class="border rounded-3 p-2 bg-body d-flex align-items-center gap-2">
+                                <button type="button" class="btn p-0 border-0 flex-shrink-0" onclick="openPhotoLightbox([{url: '{{ img.image.url|escapejs }}', caption: '{{ img.caption|escapejs }}', title: '{{ item.title|escapejs }}', is_checked: {% if img.is_checked %}true{% else %}false{% endif %}}], 0)">
+                                    <img src="{{ img.image.url }}" alt="Foto {{ forloop.counter }}" class="img-thumbnail rounded-2 object-fit-cover" style="width: 56px; height: 56px;">
+                                </button>
+                                <div class="flex-grow-1 min-w-0">
+                                    <input type="text" name="existing_image_caption_{{ img.id }}" value="{{ img.caption }}" maxlength="200" class="form-control form-control-sm" placeholder="Textzeile / Bezeichnung (optional)">
+                                </div>
+                                <label class="form-check form-check-inline small mb-0 flex-shrink-0">
                                     <input class="form-check-input" type="checkbox" name="delete_image_ids" value="{{ img.id }}">
                                     <span class="form-check-label text-danger">Löschen</span>
                                 </label>
@@ -352,8 +358,12 @@
                             {% endfor %}
                         </div>
                         {% endif %}
-                        <input type="file" name="images" multiple accept="image/*" class="form-control">
-                        <div class="form-text">Du kannst ein oder mehrere Fotos gleichzeitig auswählen.</div>
+                        <input type="file" id="item-images-input" name="images" multiple accept="image/*" class="form-control">
+                        <div class="form-text">Mehrere Fotos wählbar – werden vor dem Upload automatisch für schnelles Speichern optimiert.</div>
+                        <div id="item-images-compressing" class="small text-primary mt-2 d-none">
+                            <span class="spinner-border spinner-border-sm me-1"></span>Optimiere ausgewählte Fotos…
+                        </div>
+                        <div id="item-new-images-preview" class="d-flex flex-column gap-2 mt-2"></div>
                     </div>
                     {% endif %}
 
@@ -584,17 +594,156 @@
                         <div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Plausibilitätshinweise (Speichern trotzdem möglich):</div>
                         <ul class="mb-0 ps-3"></ul>
                     </div>
+
+                    <div id="item-upload-error" class="alert alert-danger py-2 px-3 small mb-0 d-none" role="alert"></div>
+                    <div id="item-upload-progress-wrap" class="d-none">
+                        <div class="d-flex justify-content-between small text-muted mb-1">
+                            <span>Fotos &amp; Daten werden hochgeladen…</span>
+                            <span id="item-upload-progress-pct">0%</span>
+                        </div>
+                        <div class="progress" style="height: 8px;">
+                            <div id="item-upload-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="modal-footer">
                     {% if can_edit %}
                     <button type="button" class="btn btn-outline-secondary" onclick="this.closest('#item-form-container').remove()">Abbrechen</button>
-                    <button type="submit" class="btn btn-primary">Speichern</button>
+                    <button type="submit" id="item-form-submit-btn" class="btn btn-primary">Speichern</button>
                     {% else %}
                     <button type="button" class="btn btn-primary" onclick="this.closest('#item-form-container').remove()">Schließen</button>
                     {% endif %}
                 </div>
                 {% if can_edit %}
+                <script>
+                    (function() {
+                        const modal = document.getElementById('item-form-container');
+                        if (!modal) return;
+                        const form = modal.querySelector('form');
+                        const imgInput = document.getElementById('item-images-input');
+                        const previewBox = document.getElementById('item-new-images-preview');
+                        const compressingHint = document.getElementById('item-images-compressing');
+                        const submitBtn = document.getElementById('item-form-submit-btn');
+                        const progressWrap = document.getElementById('item-upload-progress-wrap');
+                        const progressBar = document.getElementById('item-upload-progress-bar');
+                        const progressPct = document.getElementById('item-upload-progress-pct');
+                        const errBox = document.getElementById('item-upload-error');
+
+                        let pendingFiles = [];
+                        let pendingCaptions = [];
+
+                        function syncInputFiles() {
+                            if (!imgInput || typeof DataTransfer === 'undefined') return;
+                            const dt = new DataTransfer();
+                            pendingFiles.forEach(f => dt.items.add(f));
+                            imgInput.files = dt.files;
+                        }
+
+                        function renderNewPreviews() {
+                            if (!previewBox) return;
+                            previewBox.innerHTML = '';
+                            pendingFiles.forEach((file, idx) => {
+                                const row = document.createElement('div');
+                                row.className = 'border rounded-3 p-2 bg-body d-flex align-items-center gap-2';
+
+                                const thumb = document.createElement('img');
+                                thumb.className = 'img-thumbnail rounded-2 object-fit-cover flex-shrink-0';
+                                thumb.style.width = '52px';
+                                thumb.style.height = '52px';
+                                thumb.alt = file.name || 'Foto';
+                                thumb.src = URL.createObjectURL(file);
+
+                                const inp = document.createElement('input');
+                                inp.type = 'text';
+                                inp.name = 'new_image_captions';
+                                inp.maxLength = 200;
+                                inp.className = 'form-control form-control-sm';
+                                inp.placeholder = 'Textzeile / Bezeichnung (optional)';
+                                inp.value = pendingCaptions[idx] || '';
+                                inp.addEventListener('input', function() {
+                                    pendingCaptions[idx] = inp.value;
+                                });
+
+                                const rmBtn = document.createElement('button');
+                                rmBtn.type = 'button';
+                                rmBtn.className = 'btn btn-sm btn-outline-danger flex-shrink-0';
+                                rmBtn.title = 'Foto entfernen';
+                                rmBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
+                                rmBtn.addEventListener('click', function() {
+                                    pendingFiles.splice(idx, 1);
+                                    pendingCaptions.splice(idx, 1);
+                                    syncInputFiles();
+                                    renderNewPreviews();
+                                });
+
+                                row.appendChild(thumb);
+                                row.appendChild(inp);
+                                row.appendChild(rmBtn);
+                                previewBox.appendChild(row);
+                            });
+                        }
+
+                        if (imgInput) {
+                            imgInput.addEventListener('change', async function() {
+                                const rawFiles = Array.from(imgInput.files || []);
+                                if (!rawFiles.length) return;
+                                if (compressingHint) compressingHint.classList.remove('d-none');
+                                if (submitBtn) submitBtn.disabled = true;
+                                try {
+                                    for (const f of rawFiles) {
+                                        const compressed = window.compressImageFile ? await window.compressImageFile(f, 1600, 0.82) : f;
+                                        pendingFiles.push(compressed);
+                                        pendingCaptions.push('');
+                                    }
+                                    syncInputFiles();
+                                    renderNewPreviews();
+                                } finally {
+                                    if (compressingHint) compressingHint.classList.add('d-none');
+                                    if (submitBtn) submitBtn.disabled = false;
+                                }
+                            });
+                        }
+
+                        if (form) {
+                            form.addEventListener('htmx:beforeRequest', function() {
+                                if (errBox) errBox.classList.add('d-none');
+                                if (submitBtn) {
+                                    submitBtn.disabled = true;
+                                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Speichere…';
+                                }
+                                if (progressWrap) progressWrap.classList.remove('d-none');
+                            });
+                            form.addEventListener('htmx:xhr:progress', function(evt) {
+                                if (!evt.detail || !evt.detail.lengthComputable) return;
+                                const pct = Math.round((evt.detail.loaded / evt.detail.total) * 100);
+                                if (progressBar) progressBar.style.width = pct + '%';
+                                if (progressPct) progressPct.textContent = pct + '%';
+                            });
+                            function resetSubmitState(msg) {
+                                if (submitBtn) {
+                                    submitBtn.disabled = false;
+                                    submitBtn.textContent = 'Speichern';
+                                }
+                                if (progressWrap) progressWrap.classList.add('d-none');
+                                if (msg && errBox) {
+                                    errBox.textContent = msg;
+                                    errBox.classList.remove('d-none');
+                                }
+                            }
+                            form.addEventListener('htmx:responseError', function(evt) {
+                                const status = evt.detail && evt.detail.xhr ? evt.detail.xhr.status : 0;
+                                const msg = status === 413
+                                    ? 'Upload zu groß (HTTP 413). Bitte weniger Fotos auf einmal hochladen.'
+                                    : 'Fehler beim Speichern (HTTP ' + status + '). Bitte erneut versuchen.';
+                                resetSubmitState(msg);
+                            });
+                            form.addEventListener('htmx:sendError', function() {
+                                resetSubmitState('Netzwerkfehler beim Hochladen. Bitte Verbindung prüfen und erneut versuchen.');
+                            });
+                        }
+                    })();
+                </script>
                 <script>
                     (function() {
                         const modal = document.getElementById('item-form-container');

@@ -163,6 +163,7 @@ class ListTemplate(models.Model):
     use_domain_category = models.BooleanField(default=False, verbose_name=_("Kategorie (Stammdaten)"))
     domain_category_purpose = models.CharField(max_length=32, blank=True, default='', verbose_name=_("Kategorie-Bereich"))
     use_image = models.BooleanField(default=False, verbose_name=_("Foto / Bildanhang erlauben"))
+    use_image_checklist = models.BooleanField(default=False, verbose_name=_("Fotos einzeln abhakbar (z.B. Verliehen / Zurück)"))
     use_subchecklist = models.BooleanField(default=False, verbose_name=_("Teil-Checkliste / Aufzählung aktivieren"))
     use_subchecklist_photos = models.BooleanField(default=False, verbose_name=_("Teil-Checkliste mit Foto pro Eintrag"))
     new_items_at_bottom = models.BooleanField(default=False, verbose_name="Neue Einträge unten anfügen", help_text="Wenn aktiv, werden neue Einträge am Ende der Liste angefügt, andernfalls oben.")
@@ -720,6 +721,34 @@ class ListItem(models.Model):
                 pass
         return ''
 
+    def get_all_photos(self):
+        """Return normalized list of photos (legacy single image + ListItemImage rows)."""
+        photos = []
+        if self.image:
+            photos.append({
+                'id': None,
+                'url': self.image.url,
+                'caption': '',
+                'is_checked': False,
+                'is_legacy': True,
+            })
+        for img in self.images.all():
+            photos.append({
+                'id': img.id,
+                'url': img.image.url,
+                'caption': img.caption or '',
+                'is_checked': img.is_checked,
+                'is_legacy': False,
+            })
+        return photos
+
+    def photo_checklist_summary(self):
+        imgs = list(self.images.all())
+        if not imgs:
+            return None
+        done = sum(1 for img in imgs if img.is_checked)
+        return {'done': done, 'total': len(imgs)}
+
     class Meta:
         ordering = ['order', '-created_at']
         verbose_name = _("Listen-Eintrag")
@@ -729,6 +758,8 @@ class ListItem(models.Model):
 class ListItemImage(models.Model):
     item = models.ForeignKey(ListItem, on_delete=models.CASCADE, related_name='images')
     image = models.ImageField(upload_to='item_photos/', verbose_name=_("Foto / Beleg"))
+    caption = models.CharField(max_length=200, blank=True, default="", verbose_name=_("Textzeile / Bezeichnung"))
+    is_checked = models.BooleanField(default=False, verbose_name=_("Abgehakt / Zurück"))
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
