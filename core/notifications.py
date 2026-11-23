@@ -34,6 +34,13 @@ def register_buckezz_topics() -> None:
             "bi-people",
             True,
         ),
+        (
+            "buckezz.person_incomplete",
+            "Unvollständige Personen vervollständigen",
+            "Hinweis, wenn eine Person per Schnell-Eingabe angelegt wurde und Kontaktdaten fehlen.",
+            "bi-person-plus",
+            True,
+        ),
     ]
     for key, label, desc, icon, default_enabled in topics:
         try:

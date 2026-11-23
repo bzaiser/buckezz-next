@@ -279,10 +279,17 @@
                                 </option>
                             {% endfor %}
                         </select>
+                        <div id="person-created-hint" class="small text-info mt-1 d-none"></div>
                         <script>
                             (function() {
+                                const hintEl = document.getElementById('person-created-hint');
                                 new TomSelect('#select-persons', {
                                     plugins: ['remove_button'],
+                                    render: {
+                                        option_create: function(data, escape) {
+                                            return '<div class="create">Neu in Personen anlegen: <strong>' + escape(data.input) + '</strong>&hellip;</div>';
+                                        }
+                                    },
                                     create: async function(input, callback) {
                                         try {
                                             const formData = new FormData();
@@ -296,6 +303,10 @@
                                             if (response.ok) {
                                                 const data = await response.json();
                                                 callback({value: data.id, text: data.name});
+                                                if (data.created && hintEl) {
+                                                    hintEl.innerHTML = '<i class="bi bi-info-circle me-1"></i>„' + data.name + '“ neu in Personen angelegt — Erinnerung unter <strong>Meldungen</strong> zum Vervollständigen.';
+                                                    hintEl.classList.remove('d-none');
+                                                }
                                             } else {
                                                 callback(false);
                                             }

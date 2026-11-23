@@ -845,12 +845,28 @@ class BuckezzRegressionTests(TestCase):
         self.assertEqual(synced_cp.name, 'Clara Muster')
         self.assertEqual(synced_cp.company_label, 'Muster GmbH')
 
-        # Quick-Add in Buckezz auto-syncs back to domain_kit.Person
+        # Quick-Add in Buckezz auto-syncs back to domain_kit.Person and sends notify_kit reminder
         qa_resp = self.client.post(reverse('core:quick_add_person'), {'name': 'Max Schnell', 'email': 'max@example.com'})
         self.assertEqual(qa_resp.status_code, 200)
-        qa_cp = CorePerson.objects.get(pk=qa_resp.json()['id'])
+        qa_data = qa_resp.json()
+        self.assertTrue(qa_data['created'])
+        qa_cp = CorePerson.objects.get(pk=qa_data['id'])
         self.assertIsNotNone(qa_cp.domain_person_id)
         self.assertEqual(qa_cp.domain_person.full_name, 'Max Schnell')
+        from notify_kit.models import Notification
+        notif = Notification.objects.filter(
+            user=owner,
+            topic='buckezz.person_incomplete',
+            title='Person vervollständigen: Max Schnell',
+        ).first()
+        self.assertIsNotNone(notif)
+        self.assertIn(f'?edit={qa_cp.domain_person_id}', notif.link)
+
+        # Quick-Add with existing person name returns existing without creating duplicate
+        dup_resp = self.client.post(reverse('core:quick_add_person'), {'name': 'clara muster'})
+        self.assertEqual(dup_resp.status_code, 200)
+        self.assertFalse(dup_resp.json()['created'])
+        self.assertEqual(dup_resp.json()['id'], synced_cp.id)
 
         # 3. Template using domain_kit categories, statuses & roles + category grouping
         cat = ListCategory.objects.create(name='Projekt-Inventar', icon='bi-box-seam', slug='projekt-inventar')

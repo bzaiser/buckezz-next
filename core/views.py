@@ -768,6 +768,11 @@ class BucketListDetailView(DetailView):
                     notify_user_safe(bucket.owner, f"Niedriger Vorrat: {bucket.title}", txt, level="warning", link=list_link, topic="buckezz.low_stock", deduplicate_unread=True)
         context['is_beneficiary'] = is_beneficiary
         context['current_person'] = current_person
+        from .domain_sync import sync_all_persons
+        try:
+            sync_all_persons()
+        except Exception:
+            pass
         context['people'] = Person.objects.select_related('domain_person').order_by('name')
         if tpl.use_domain_category:
             from domain_kit.models import Category as DomainCategory
@@ -1047,6 +1052,11 @@ class GetItemFormView(View):
         
         from domain_kit.models import Unit, Category as DomainCategory
         units = Unit.objects.all().order_by('position', 'name')
+        from .domain_sync import sync_all_persons
+        try:
+            sync_all_persons()
+        except Exception:
+            pass
         people = Person.objects.select_related('domain_person').order_by('name')
         tpl = bucket.category.template
         if tpl.use_domain_category:

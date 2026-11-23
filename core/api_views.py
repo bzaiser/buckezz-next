@@ -455,19 +455,62 @@ class ICalExportView(View):
 
 class QuickAddPersonView(View):
     def post(self, request):
-        name = request.POST.get('name')
+        name = (request.POST.get('name') or '').strip()
         if not name:
             return JsonResponse({'error': 'Name is required'}, status=400)
         phone = request.POST.get('phone', '').strip()
         email = request.POST.get('email', '').strip()
         notes = request.POST.get('notes', '').strip()
+
+        from django.urls import reverse
+        from .domain_sync import sync_all_persons
+        from .notifications import notify_user_safe
+
+        # Ensure existing domain_kit.Person records are synced before checking for duplicates
+        try:
+            sync_all_persons()
+        except Exception:
+            pass
+
+        existing = Person.objects.filter(name__iexact=name).first()
+        if existing:
+            return JsonResponse({
+                'id': existing.id,
+                'name': existing.name,
+                'created': False,
+                'domain_person_id': existing.domain_person_id,
+            })
+
         person = Person.objects.create(
             name=name,
             phone=phone if phone else None,
             email=email if email else None,
             notes=notes if notes else None
         )
-        return JsonResponse({'id': person.id, 'name': person.name})
+        person.refresh_from_db()
+
+        if request.user.is_authenticated:
+            try:
+                base_url = reverse('domain_kit:persons')
+            except Exception:
+                base_url = '/domain/persons/'
+            link = f"{base_url}?edit={person.domain_person_id}" if person.domain_person_id else base_url
+            notify_user_safe(
+                request.user,
+                title=f"Person vervollständigen: {person.name}",
+                message=f"„{person.name}“ wurde per Schnell-Eingabe neu in Personen angelegt. Kontaktdaten jetzt vervollständigen.",
+                level="info",
+                link=link,
+                topic="buckezz.person_incomplete",
+                deduplicate_unread=True,
+            )
+
+        return JsonResponse({
+            'id': person.id,
+            'name': person.name,
+            'created': True,
+            'domain_person_id': person.domain_person_id,
+        })
 
 import datetime
 
